@@ -8,37 +8,36 @@
 #include <conio.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyZ, hEventKeyEsc;
+HANDLE hEventKeyL, hEventKeyEsc;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
 int main() {
-    SetConsoleTitle(L"TERMINAL B - Exibicao de alarmes");
+    SetConsoleTitle(L"TERMINAL B - Exibicao de alarmes SCADA");
 
     int     nTipoEvento = 2, key = 0;
 
-    bool    status;
+    bool    status = false;
 
-    char    PIMS[27] = { 'N', 'S', 'E', 'Q', 
+    char    Alarmes[27] = { 'N', 'S', 'E', 'Q', 
                          'T', 'I', 'P', 'O',
                          'I', 'D', 
                          'P', 'R', 'I', 'O', 'R', 'I', 'D', 'A', 'D', 'E',
-                         'H', 'H', ':', 'M', 'M', ':', 'S', 
+                         'H', 'H', ':', 'M', 'M', ':', 'S',
                         },
         MsgBuffer[38];
 
-    DWORD   ret, dwBytesLidos, MenssageCount;
+    DWORD   ret, dwBytesLidos, MenssageCount{};
 
-    hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
-    CheckForError(hEventKeyZ);
+    hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
+    CheckForError(hEventKeyL);
 
     hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
     CheckForError(hEventKeyEsc);
 
-    HANDLE Events[2] = { hEventKeyZ, hEventKeyEsc };
+    HANDLE Events[2] = { hEventKeyL, hEventKeyEsc };
 
     while (key != ESC_KEY) {
         ret = WaitForMultipleObjects(2, Events, FALSE, 1);
-        GetLastError();
 
         if (ret != WAIT_TIMEOUT) {
             nTipoEvento = ret - WAIT_OBJECT_0;
@@ -51,7 +50,6 @@ int main() {
             printf(" - Processo de exibicao de dados\n");
 
             ret = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-            GetLastError();
 
             nTipoEvento = ret - WAIT_OBJECT_0;
 
@@ -70,42 +68,40 @@ int main() {
             key = ESC_KEY;
         }
 
-        GetLastError();
-
         /*Caso nTipoEvento nao tenha sido alterado -> leitura do mailslot*/
         if (nTipoEvento == 2 && (int)MenssageCount > 0) {
             CheckForError(status);
 
             /*TIMESTAMP*/
             for (int j = 0; j < 8; j++) {
-                PIMS[j] = MsgBuffer[(j + 23)];
+                Alarmes[j] = MsgBuffer[(j + 23)];
             }
 
             /*NSEQ*/
             for (int j = 14; j < 20; j++) {
-                PIMS[j] = MsgBuffer[(j - 14)];
+                Alarmes[j] = MsgBuffer[(j - 14)];
             }
 
             /*ID ALARME*/
             for (int j = 31; j < 35; j++) {
-                PIMS[j] = MsgBuffer[(j - 22)];
+                Alarmes[j] = MsgBuffer[(j - 22)];
             }
 
             /*GRAU*/
             for (int j = 41; j < 43; j++) {
-                PIMS[j] = MsgBuffer[(j - 27)];
+                Alarmes[j] = MsgBuffer[(j - 27)];
             }
 
             /*PREV*/
             for (int j = 49; j < 54; j++) {
-                PIMS[j] = MsgBuffer[(j - 32)];
+                Alarmes[j] = MsgBuffer[(j - 32)];
             }
 
             if (MsgBuffer[7] == '9') {
                 /*Exibe alarmes criticos em vermelho*/
                 SetConsoleTextAttribute(hConsole, 12);
                 for (int j = 0; j < 54; j++) {
-                    printf("%c", PIMS[j]);
+                    printf("%c", Alarmes[j]);
                 }
                 SetConsoleTextAttribute(hConsole, 15);
                 printf("\n");
@@ -113,7 +109,7 @@ int main() {
             else if (MsgBuffer[7] == '2') {
                 /*Exibe alarmes nao criticos*/
                 for (int j = 0; j < 54; j++) {
-                    printf("%c", PIMS[j]);
+                    printf("%c", Alarmes[j]);
                 }
                 printf("\n");
             }
@@ -124,7 +120,7 @@ int main() {
     /*Fechando handles*/
     CloseHandle(Events);
     CloseHandle(hEventKeyEsc);
-    CloseHandle(hEventKeyZ);
+    CloseHandle(hEventKeyL);
     CloseHandle(hConsole);
 
     /*------------------------------------------------------------------------------*/
