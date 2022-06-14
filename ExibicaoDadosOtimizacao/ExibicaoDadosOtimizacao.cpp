@@ -10,7 +10,7 @@
 #include <conio.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyO, hEventKeyEsc, hArquivo, hArquivoCheio, hFile;
+HANDLE hEventKeyT, hEventKeyEsc, hArquivo, hArquivoCheio, hFile;
 
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -24,7 +24,7 @@ int n_mensagem = 0;
 
 int main() {
     /*Nomeando o terminal do processo*/
-    SetConsoleTitle(L"TERMINAL A - Exibicao de dados");
+    SetConsoleTitle(L"TERMINAL A - Exibicao de dados de otimização");
 
     /*Declarando variaveis locais main()*/
     /*Valores genericos para fins de formatacao*/
@@ -43,8 +43,8 @@ int main() {
 
     /*------------------------------------------------------------------------------*/
     /*Abrindo eventos*/
-    hEventKeyO = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyO");
-    CheckForError(hEventKeyO);
+    hEventKeyT = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyT");
+    CheckForError(hEventKeyT);
 
     hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
     CheckForError(hEventKeyEsc);
@@ -77,7 +77,7 @@ int main() {
 
     /*------------------------------------------------------------------------------*/
     /*Vetor com handles da tarefa*/
-    HANDLE Events[2] = { hEventKeyO, hEventKeyEsc };
+    HANDLE Events[2] = { hEventKeyT, hEventKeyEsc };
 
     /*------------------------------------------------------------------------------*/
     /*Loop de execucao*/
@@ -98,7 +98,6 @@ int main() {
             printf(" - Processo de exibicao de alarmes\n");
 
             ret = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-            GetLastError();
 
             nTipoEvento = ret - WAIT_OBJECT_0;
 
@@ -193,7 +192,7 @@ int main() {
     /*Fechando handles*/
     CloseHandle(Events);
     CloseHandle(hEventKeyEsc);
-    CloseHandle(hEventKeyO);
+    CloseHandle(hEventKeyT);
     CloseHandle(hConsole);
     CloseHandle(hArquivo);
     CloseHandle(hArquivoCheio);
