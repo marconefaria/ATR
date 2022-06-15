@@ -8,36 +8,25 @@
 #include <conio.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyL, hEventKeyEsc;
+HANDLE hEventKeyL, hEventKeyEsc, hEventKeyZ;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
 int main() {
-    SetConsoleTitle(L"TERMINAL B - Exibicao de alarmes SCADA");
+    int     nTipoEvento = 3, key = 0;
+    DWORD   ret;
 
-    int     nTipoEvento = 2, key = 0;
-
-    bool    status = false;
-
-    char    Alarmes[27] = { 'N', 'S', 'E', 'Q', 
-                         'T', 'I', 'P', 'O',
-                         'I', 'D', 
-                         'P', 'R', 'I', 'O', 'R', 'I', 'D', 'A', 'D', 'E',
-                         'H', 'H', ':', 'M', 'M', ':', 'S',
-                        },
-        MsgBuffer[38];
-
-    DWORD   ret, dwBytesLidos, MenssageCount{};
-
-    hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
+    HANDLE hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
     CheckForError(hEventKeyL);
-
-    hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
+    HANDLE hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
     CheckForError(hEventKeyEsc);
+    HANDLE hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
+    CheckForError(hEventKeyZ);
 
-    HANDLE Events[2] = { hEventKeyL, hEventKeyEsc };
+    HANDLE Events[3] = { hEventKeyL, hEventKeyEsc, hEventKeyZ};
 
-    while (key != ESC_KEY) {
-        ret = WaitForMultipleObjects(2, Events, FALSE, 1);
+    while (nTipoEvento != 1) {
+
+        ret = WaitForMultipleObjects(3, Events, FALSE, 1);
 
         if (ret != WAIT_TIMEOUT) {
             nTipoEvento = ret - WAIT_OBJECT_0;
@@ -47,83 +36,30 @@ int main() {
             SetConsoleTextAttribute(hConsole, 12);
             printf("BLOQUEADO");
             SetConsoleTextAttribute(hConsole, 15);
-            printf(" - Processo de exibicao de dados\n");
+            printf(" - Processo de exibicao de alarmes\n");
 
-            ret = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-
+            ret = WaitForMultipleObjects(3, Events, FALSE, INFINITE);
             nTipoEvento = ret - WAIT_OBJECT_0;
 
             if (nTipoEvento == 0) {
-                nTipoEvento = 2;
-            }
 
-            SetConsoleTextAttribute(hConsole, 10);
-            printf("DESBLOQUEADO");
-            SetConsoleTextAttribute(hConsole, 15);
-            printf(" - Processo de exibicao de dados\n");
-        }
-
-        /*Condicao para termino do processo*/
-        if (nTipoEvento == 1) {
-            key = ESC_KEY;
-        }
-
-        /*Caso nTipoEvento nao tenha sido alterado -> leitura do mailslot*/
-        if (nTipoEvento == 2 && (int)MenssageCount > 0) {
-            CheckForError(status);
-
-            /*TIMESTAMP*/
-            for (int j = 0; j < 8; j++) {
-                Alarmes[j] = MsgBuffer[(j + 23)];
-            }
-
-            /*NSEQ*/
-            for (int j = 14; j < 20; j++) {
-                Alarmes[j] = MsgBuffer[(j - 14)];
-            }
-
-            /*ID ALARME*/
-            for (int j = 31; j < 35; j++) {
-                Alarmes[j] = MsgBuffer[(j - 22)];
-            }
-
-            /*GRAU*/
-            for (int j = 41; j < 43; j++) {
-                Alarmes[j] = MsgBuffer[(j - 27)];
-            }
-
-            /*PREV*/
-            for (int j = 49; j < 54; j++) {
-                Alarmes[j] = MsgBuffer[(j - 32)];
-            }
-
-            if (MsgBuffer[7] == '9') {
-                /*Exibe alarmes criticos em vermelho*/
-                SetConsoleTextAttribute(hConsole, 12);
-                for (int j = 0; j < 54; j++) {
-                    printf("%c", Alarmes[j]);
-                }
+                SetConsoleTextAttribute(hConsole, 10);
+                printf("DESBLOQUEADO");
                 SetConsoleTextAttribute(hConsole, 15);
-                printf("\n");
-            }
-            else if (MsgBuffer[7] == '2') {
-                /*Exibe alarmes nao criticos*/
-                for (int j = 0; j < 54; j++) {
-                    printf("%c", Alarmes[j]);
-                }
-                printf("\n");
+                printf(" - Processo de exibicao de alarmes\n");
+
+                nTipoEvento = 3;
             }
         }
-    } /*fim do while*/
+        else if (nTipoEvento == 2) {
+             system("cls");
+        }
+    } 
 
-    /*------------------------------------------------------------------------------*/
-    /*Fechando handles*/
     CloseHandle(Events);
     CloseHandle(hEventKeyEsc);
     CloseHandle(hEventKeyL);
     CloseHandle(hConsole);
 
-    /*------------------------------------------------------------------------------*/
-    /*Finalizando o processo de exibicao de alarmes*/
     return EXIT_SUCCESS;
 }

@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ExibicaoDadosOtimizacao.cpp">
-      <Filter>Arquivos de Origem</Filter>
+      <Filter>Arquivos de Recurso</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
