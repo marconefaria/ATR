@@ -50,12 +50,12 @@ HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 int main() {
 
     setlocale(LC_ALL, "Portuguese");
-    SetConsoleTitle(L"| Terminal Principal |");                               /*Altera nome do terminal da thread primaria*/
+    SetConsoleTitle(L"| Terminal Principal |");                              /*Altera nome do terminal da thread primaria*/
 
     CriarObjetos();
     CriarProcessosExibicao();
     CriarThreadsSecundarias();  
-    CapturarTeclado();         // funcionando                               /*Faz a leitura do teclado enquanto a execução está ativa. A tecla ESC encerra a execução*/
+    CapturarTeclado();                                                      /*Faz a leitura do teclado enquanto a execução está ativa. A tecla ESC encerra a execução*/
     WaitForSingleObject(hTimeOut, 5000);                                    
     FecharHandlers();                                                       /*Aguardando o fim dos processos e threads antes de encerrar*/
 
@@ -101,7 +101,7 @@ void CriarProcessosExibicao()
     bool statusProcess;
     ZeroMemory(&startup_info, sizeof(startup_info));                           /* Zera um bloco de memória localizado em &si passando o comprimento a ser zerado. */
     startup_info.cb = sizeof(startup_info);	                                   /*Tamanho da estrutura em bytes*/
-    startup_info.lpTitle = L"TERMINAL A - Exibicao de dados do SCADA";
+    startup_info.lpTitle = L"TERMINAL A - Exibicao de Dados do Processo";
 
     /*Processo de exibicao de dados da plataforma petrolifica- Terminal Dados Scada do Processo*/
     statusProcess = CreateProcess(
@@ -129,7 +129,7 @@ void CriarProcessosExibicao()
     
 
     /*Processo de exibicao de dados do novo sistema de otimizacao - Terminal DadosOtimizacao do Processo*/
-    startup_info.lpTitle = L"TERMINAL B - Exibicao de dados de Otimizacao";
+    startup_info.lpTitle = L"TERMINAL B - Exibicao de Dados de Otimizacao";
     statusProcess = CreateProcess(
         L"..\\x64\\Debug\\ExibicaoDadosOtimizacao.exe",                        /*Caminho relativo do arquivo executavel*/
         NULL,                                                                  /*Apontador para parametros de linha de comando*/
@@ -152,7 +152,7 @@ void CriarProcessosExibicao()
     ReleaseMutex(hMutexConsole);
 
     /*Processo de exibicao de alarmes - Terminal Alarmes*/
-    startup_info.lpTitle = L"TERMINAL C - Exibicao de alarmes do SCADA";
+    startup_info.lpTitle = L"TERMINAL C - Exibicao de Alarmes";
     statusProcess = CreateProcess(
         L"..\\x64\\Debug\\ExibicaoAlarmes.exe",                                /*Caminho relativo do arquivo executavel*/
         NULL,                                                                  /*Apontador para parametros de linha de comando*/
@@ -304,8 +304,7 @@ void FecharHandlers()
 /*  ADICIONA MENSAGENS NA LISTA CIRCULAR*/
 
 void* GeraDadosOtimizacao(void* arg) {
-    /*Declarando variaveis locais do LeituraSDCD()*/
-    int     index = (int)arg, status, nTipoEvento = 3, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
 
     char    Otimizacao[38], Hora[3], Minuto[3], Segundo[3];
 
@@ -523,8 +522,7 @@ void* GeraDadosOtimizacao(void* arg) {
 }
 
 void* GeraDadosProcesso(void* arg) {
-    /*Declarando variaveis locais da funcao LeituraSCADA()*/
-    int     index = (int)arg, status, nTipoEvento = 3, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
 
     char    Processo[46], Hora[3], Minuto[3], Segundo[3];
 
@@ -755,7 +753,7 @@ void* GeraDadosProcesso(void* arg) {
 
 void* GeraAlarmes(void* arg) {
     /*Declarando variaveis locais da funcao LeituraSCADA()*/
-    int     index = (int)arg, status, nTipoEvento = 3, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
 
     char    Alarme[27], Hora[3], Minuto[3], Segundo[3];
 
@@ -775,7 +773,6 @@ void* GeraAlarmes(void* arg) {
 
             /*Bloqueio e desbloqueio da thread GeraAlarmes*/
             ret = WaitForMultipleObjects(2, Events, FALSE, 1);
-
             nTipoEvento = ret - WAIT_OBJECT_0;
 
             if (nTipoEvento == 0) {
@@ -870,6 +867,7 @@ void* GeraAlarmes(void* arg) {
 
             /*Temporizador - Mensagens do SDCD se repetem de 500 em 500 ms*/
             /*475 pois o tempo medio da conquista de mutex, semaforo, criacao e gravacao dos dados na lista demora 025 ms*/
+            
             WaitForSingleObject(hTimeOut, 475);
 
             /*Gravacao dos dados gerados em memoria*/
@@ -955,7 +953,7 @@ void* GeraAlarmes(void* arg) {
     CloseHandle(Events);
 
     WaitForSingleObject(hMutexConsole, INFINITE);
-    printf("Finalizando - Retira Dados Otimizacao\n");
+    printf("Finalizando - Retira Alarmes\n");
     ReleaseMutex(hMutexConsole);
     pthread_exit((void*)index);
 
@@ -970,7 +968,7 @@ void* GeraAlarmes(void* arg) {
 /*  Processos e Alarmes são enviados para as threads de Exibicao*/
 
 void* RetiraDadosOtimizacao(void* arg) {
-    int     index = (int)arg, status, i, nTipoEvento = 0;
+    int     index = (int)arg, status, i, nTipoEvento = -1;
     char    DadosOtimizacao[38];
     DWORD   ret;
 
@@ -1025,7 +1023,7 @@ void* RetiraDadosOtimizacao(void* arg) {
                     }
                     p_ocup = (p_ocup + 1) % RAM;
 
-                    printf("%s\n", DadosOtimizacao);
+                    printf("%.*s\n\n", 38, DadosOtimizacao);
                     ReleaseSemaphore(hSemLivre, 1, NULL);
                 }
                 else {
@@ -1049,7 +1047,7 @@ void* RetiraDadosOtimizacao(void* arg) {
 }
 
 void* RetiraDadosProcesso(void* arg) {
-    int     index = (int)arg, status, i, nTipoEvento = 0;
+    int     index = (int)arg, status, i, nTipoEvento = -1;
     char    DadosProcesso[46];
     DWORD   ret;
 
@@ -1104,7 +1102,7 @@ void* RetiraDadosProcesso(void* arg) {
                     }
                     p_ocup = (p_ocup + 1) % RAM;
 
-                    printf("%s\n", DadosProcesso);
+                    printf("%.*s\n\n", 46, DadosProcesso);
                     ReleaseSemaphore(hSemLivre, 1, NULL);
                 }
                 else {
@@ -1128,8 +1126,7 @@ void* RetiraDadosProcesso(void* arg) {
 }
 
 void* RetiraAlarmes(void* arg) {
-   
-    int     index = (int)arg, status, i, nTipoEvento = 0;
+    int     index = (int)arg, status, i, nTipoEvento = -1;
     char    Alarmes[27];
     DWORD   ret;
 
@@ -1179,7 +1176,7 @@ void* RetiraAlarmes(void* arg) {
                         }
                         p_ocup = (p_ocup + 1) % RAM;
 
-                        printf("%s\n", Alarmes);
+                        printf("%.*s\n\n", 27, Alarmes);
                         ReleaseSemaphore(hSemLivre, 1, NULL);
                     }
                     else {
