@@ -304,7 +304,7 @@ void FecharHandlers()
 /*  ADICIONA MENSAGENS NA LISTA CIRCULAR*/
 
 void* GeraDadosOtimizacao(void* arg) {
-    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = 0, k = 0, i = 0, l = 0;
 
     char    Otimizacao[38], Hora[3], Minuto[3], Segundo[3];
 
@@ -522,7 +522,7 @@ void* GeraDadosOtimizacao(void* arg) {
 }
 
 void* GeraDadosProcesso(void* arg) {
-    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = 0, k = 0, i = 0, l = 0;
 
     char    Processo[46], Hora[3], Minuto[3], Segundo[3];
 
@@ -753,7 +753,7 @@ void* GeraDadosProcesso(void* arg) {
 
 void* GeraAlarmes(void* arg) {
     /*Declarando variaveis locais da funcao LeituraSCADA()*/
-    int     index = (int)arg, status, nTipoEvento = -1, k = 0, i = 0, l = 0;
+    int     index = (int)arg, status, nTipoEvento = 0, k = 0, i = 0, l = 0;
 
     char    Alarme[27], Hora[3], Minuto[3], Segundo[3];
 
@@ -968,7 +968,7 @@ void* GeraAlarmes(void* arg) {
 /*  Processos e Alarmes são enviados para as threads de Exibicao*/
 
 void* RetiraDadosOtimizacao(void* arg) {
-    int     index = (int)arg, status, i, nTipoEvento = -1;
+    int     index = (int)arg, status, i, nTipoEvento = 0;
     char    DadosOtimizacao[38];
     DWORD   ret;
 
@@ -1047,7 +1047,7 @@ void* RetiraDadosOtimizacao(void* arg) {
 }
 
 void* RetiraDadosProcesso(void* arg) {
-    int     index = (int)arg, status, i, nTipoEvento = -1;
+    int     index = (int)arg, status, i, nTipoEvento = 0;
     char    DadosProcesso[46];
     DWORD   ret;
 
@@ -1126,7 +1126,7 @@ void* RetiraDadosProcesso(void* arg) {
 }
 
 void* RetiraAlarmes(void* arg) {
-    int     index = (int)arg, status, i, nTipoEvento = -1;
+    int     index = (int)arg, status, i, nTipoEvento = 0;
     char    Alarmes[27];
     DWORD   ret;
 
