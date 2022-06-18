@@ -104,9 +104,9 @@ void CriarProcessosExibicao()
 	bool statusProcess;
 	ZeroMemory(&startup_info, sizeof(startup_info));                           /* Zera um bloco de memória localizado em &si passando o comprimento a ser zerado. */
 	startup_info.cb = sizeof(startup_info);	                                   /*Tamanho da estrutura em bytes*/
-	startup_info.lpTitle = L"TERMINAL A - Exibicao de Dados do Processo";
 
 	/*Processo de exibicao de dados da plataforma petrolifica- Terminal Dados Scada do Processo*/
+	startup_info.lpTitle = L"TERMINAL A - Exibicao de Dados do Processo";
 	statusProcess = CreateProcess(
 		L"..\\x64\\Debug\\ExibicaoDadosProcesso.exe",                        /*Caminho relativo do arquivo executavel*/
 		NULL,                                                                  /*Apontador para parametros de linha de comando*/
@@ -120,14 +120,12 @@ void CriarProcessosExibicao()
 		&process_info);	                                                       /*lpProcessInformation*/
 
 	WaitForSingleObject(hMutexConsole, INFINITE);
-
 	if (!statusProcess) {
 		printf("Erro na criacao do Terminal de Dados do Processo! Codigo = %d\n", GetLastError());
 	}
 	else {
 		printf("Processo de exibicao de Dados de Processo e Terminal criados\n");
 	}
-
 	ReleaseMutex(hMutexConsole);
 
 
