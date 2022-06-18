@@ -767,6 +767,9 @@ void* GeraDados(void* arg) {
 	/*Loop de execucao*/
 	while (nTipoEvento != 1) {
 		for (i = 1; i < 1000000; ++i) {
+			GeraDadosOtimizacao(i);
+			GeraDadosProcesso(i);
+			GeraAlarmes(i);
 			/*Condicao para termino da thread*/
 			if (nTipoEvento == 1) break;
 
@@ -799,9 +802,6 @@ void* GeraDados(void* arg) {
 			else if (nTipoEvento == 1) {
 				break;
 			}
-			GeraDadosOtimizacao(i);
-			GeraDadosProcesso(i);
-			GeraAlarmes(i);
 		}
 
 		/*Condição para termino do processo*/
@@ -834,68 +834,60 @@ void* RetiraDadosOtimizacao(void* arg) {
 		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
-	do {
+	while (nTipoEvento != 1) {
 		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
 
-		if (nTipoEvento == 1) {
-			break;
-		}
-		else if (nTipoEvento == 0) {
+		if (nTipoEvento == 0) {
 			WaitForSingleObject(hMutexConsole, INFINITE);
 			SetConsoleTextAttribute(hConsole, 12);
 			printf("BLOQUEADO");
 			SetConsoleTextAttribute(hConsole, 15);
-			printf(" - Thread Retira Dados Otimização\n");
+			printf(" - Thread Retira Dados Otimizacao\n");
 			ReleaseMutex(hMutexConsole);
 
-			ret = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-			nTipoEvento = ret - WAIT_OBJECT_0;
+			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
 
-			if (nTipoEvento == 0) {
-				WaitForSingleObject(hMutexConsole, INFINITE);
-				SetConsoleTextAttribute(hConsole, 10);
-				printf("DESBLOQUEADO");
-				SetConsoleTextAttribute(hConsole, 15);
-				printf(" - Thread Retira Dados Otimizacao\n");
-				ReleaseMutex(hMutexConsole);
-			}
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Dados Otimizacao\n");
+			ReleaseMutex(hMutexConsole);
 		}
-		else {
-			nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, 100);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
 
-			if (nTipoEvento == 1) {
+		if (nTipoEvento == 1) break;
 
-			}
+		nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, INFINITE);
+
+		if (nTipoEvento == 1) break;
+
+		else if (nTipoEvento == 0) {
+			nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
+
+			if (nTipoEvento == 1) break;
 			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
-
-				nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, 100);                      /*Conquistando o mutex da secao critica*/
-
-				if (nTipoEvento == 0) {
-
-					if (CircularList[p_ocup][7] == '1' && CircularList[p_ocup][8] == '1') {         /*Selecao dos dados apenas de tipo  11 = DadosOtimizacao */
-
-						for (int i = 0; i < 38; i++) {
-							DadosOtimizacao[i] = CircularList[p_ocup][i];
-						}
-						WaitForSingleObject(hMutexConsole, INFINITE);
-						printf("%.*s\n\n", 38, DadosOtimizacao);
-						ReleaseMutex(hMutexConsole);
-
-						p_ocup = (p_ocup + 1) % RAM;
-						ReleaseSemaphore(hSemLivre, 1, NULL);
+				if (CircularList[p_ocup][7] == '1' && CircularList[p_ocup][8] == '1') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
+					for (int i = 0; i < 38; i++) {
+						DadosOtimizacao[i] = CircularList[p_ocup][i];
 					}
-					else {
-						ReleaseSemaphore(hSemOcupado, 1, NULL);
-					}
-					ReleaseMutex(hMutexBuffer);
+
+					WaitForSingleObject(hMutexConsole, INFINITE);
+					printf("%.*s\n\n", 38, DadosOtimizacao);
+					ReleaseMutex(hMutexConsole);
+
+					p_ocup = (p_ocup + 1) % RAM;
+
+					ReleaseSemaphore(hSemLivre, 1, NULL);
 				}
 				else {
 					ReleaseSemaphore(hSemOcupado, 1, NULL);
 				}
+
+				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+
 			}
 		}
-
-	} while (nTipoEvento != 1);
+	}
 
 	CloseHandle(MutexBuffer);
 	CloseHandle(SemOcupado);
@@ -917,13 +909,11 @@ void* RetiraDadosProcesso(void* arg) {
 		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
-	do {
+
+	while (nTipoEvento != 1) {
 		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
 
-		if (nTipoEvento == 1) {
-			break;
-		}
-		else if (nTipoEvento == 0) {
+		if (nTipoEvento == 0) {
 			WaitForSingleObject(hMutexConsole, INFINITE);
 			SetConsoleTextAttribute(hConsole, 12);
 			printf("BLOQUEADO");
@@ -933,50 +923,48 @@ void* RetiraDadosProcesso(void* arg) {
 
 			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
 
-			if (nTipoEvento == 0) {
-				WaitForSingleObject(hMutexConsole, INFINITE);
-				SetConsoleTextAttribute(hConsole, 10);
-				printf("DESBLOQUEADO");
-				SetConsoleTextAttribute(hConsole, 15);
-				printf(" - Thread Retira Dados Processo\n");
-				ReleaseMutex(hMutexConsole);
-			}
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Dados Processo\n");
+			ReleaseMutex(hMutexConsole);
 		}
-		else {
-			nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, 100);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
 
-			if (nTipoEvento == 1) {
+		if (nTipoEvento == 1) break;
 
-			}
-			else if (nTipoEvento == 0) {                                                                /*Semafoto de espacos ocupados Conquistado*/
+		nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, INFINITE);
 
-				nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, 100);                      /*Conquistando o mutex da secao critica*/
+		if (nTipoEvento == 1) break;
 
-				if (nTipoEvento == 0) {
+		else if (nTipoEvento == 0) {
+			nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
 
-					if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  22 = DadosProcesso */
-
-						for (int i = 0; i < 46; i++) {
-							DadosProcesso[i] = CircularList[p_ocup][i];
-						}
-						WaitForSingleObject(hMutexConsole, INFINITE);
-						printf("%.*s\n\n", 46, DadosProcesso);
-						ReleaseMutex(hMutexConsole);
-
-						p_ocup = (p_ocup + 1) % RAM;
-						ReleaseSemaphore(hSemLivre, 1, NULL);
+			if (nTipoEvento == 1) break;
+			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
+				if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
+					for (int i = 0; i < 46; i++) {
+						DadosProcesso[i] = CircularList[p_ocup][i];
 					}
-					else {
-						ReleaseSemaphore(hSemOcupado, 1, NULL);
-					}
-					ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+
+					WaitForSingleObject(hMutexConsole, INFINITE);
+					printf("%.*s\n\n", 46, DadosProcesso);
+					ReleaseMutex(hMutexConsole);
+
+					p_ocup = (p_ocup + 1) % RAM;
+
+					ReleaseSemaphore(hSemLivre, 1, NULL);
 				}
 				else {
 					ReleaseSemaphore(hSemOcupado, 1, NULL);
 				}
+
+				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+
 			}
 		}
-	} while (nTipoEvento != 1);
+	}
+
 
 	CloseHandle(MutexBuffer);
 	CloseHandle(SemOcupado);
@@ -998,13 +986,10 @@ void* RetiraAlarmes(void* arg) {
 		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
-	do {
+	while (nTipoEvento != 1) {
 		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
 
-		if (nTipoEvento == 1) {
-			break;
-		}
-		else if (nTipoEvento == 0) {
+		if (nTipoEvento == 0) {
 			WaitForSingleObject(hMutexConsole, INFINITE);
 			SetConsoleTextAttribute(hConsole, 12);
 			printf("BLOQUEADO");
@@ -1014,51 +999,47 @@ void* RetiraAlarmes(void* arg) {
 
 			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
 
-			if (nTipoEvento == 0) {
-				WaitForSingleObject(hMutexConsole, INFINITE);
-				SetConsoleTextAttribute(hConsole, 10);
-				printf("DESBLOQUEADO");
-				SetConsoleTextAttribute(hConsole, 15);
-				printf(" - Thread Retira Alarmes\n");
-				ReleaseMutex(hMutexConsole);
-			}
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Alarmes\n");
+			ReleaseMutex(hMutexConsole);
 		}
-		else {
-			nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, 100);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
 
-			if (nTipoEvento == 1) {
+		if (nTipoEvento == 1) break;
 
-			}
-			if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
+		nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, INFINITE);
 
-				nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, 100);                      /*Conquistando o mutex da secao critica*/
+		if (nTipoEvento == 1) break;
 
-				if (nTipoEvento == 0) {
+		else if (nTipoEvento == 0) {
+			nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
 
-					if (CircularList[p_ocup][7] == '5' && CircularList[p_ocup][8] == '5') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
-
-						for (int i = 0; i < 27; i++) {
-							Alarmes[i] = CircularList[p_ocup][i];
-						}
-						WaitForSingleObject(hMutexConsole, INFINITE);
-						printf("%.*s\n\n", 27, Alarmes);
-						ReleaseMutex(hMutexConsole);
-
-						p_ocup = (p_ocup + 1) % RAM;
-						ReleaseSemaphore(hSemLivre, 1, NULL);
-					}
-					else {
-						ReleaseSemaphore(hSemOcupado, 1, NULL);
+			if (nTipoEvento == 1) break;
+			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
+				if (CircularList[p_ocup][7] == '5' && CircularList[p_ocup][8] == '5') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
+					for (int i = 0; i < 27; i++) {
+						Alarmes[i] = CircularList[p_ocup][i];
 					}
 
-					ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+					WaitForSingleObject(hMutexConsole, INFINITE);
+					printf("%.*s\n\n", 27, Alarmes);
+					ReleaseMutex(hMutexConsole);
+
+					p_ocup = (p_ocup + 1) % RAM;
+
+					ReleaseSemaphore(hSemLivre, 1, NULL);
 				}
 				else {
 					ReleaseSemaphore(hSemOcupado, 1, NULL);
 				}
+
+				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+
 			}
 		}
-	} while (nTipoEvento != 1);
+	}
 
 	CloseHandle(MutexBuffer);
 	CloseHandle(SemOcupado);
