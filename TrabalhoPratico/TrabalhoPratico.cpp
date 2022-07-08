@@ -14,8 +14,8 @@
 #include <string.h>
 #include <locale.h>
 #include <pthread.h>
-#include "CheckForError.h"   
 #include <string>
+#include "CheckForError.h"   
 
 #define _CHECKERROR	    1				                                        
 #define RAM             100                                                     
@@ -44,12 +44,14 @@ int n_mensagem = 0;
 
 //Objetos do escopo global
 HANDLE hMutexBuffer, hMutexConsole;
-HANDLE hSemLivre, hSemOcupado;
-HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc, hTimeOut;
+HANDLE hSemLivre, hSemOcupado, hArquivo;
+HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc, hTimeOut, hEventMailslotAlarme;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-int main() {
+HANDLE hArquivoCheio;
+HANDLE hMailslotClienteAlarme;
 
+int main() {
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	setlocale(LC_ALL, "Portuguese");
 	SetConsoleTitle(L"| Terminal Principal |");                              /*Altera nome do terminal da thread primaria*/
@@ -72,7 +74,6 @@ int main() {
 }
 
 void CriarObjetos() {
-
 	// Mutexes
 	hMutexBuffer = CreateMutex(NULL, FALSE, L"MutexBuffer");                /*Para controlar o acesso ao buffer de mensagem*/
 	hMutexConsole = CreateMutex(NULL, FALSE, L"MutexConsole");              /*Para controlar o acesso as escritas do console*/
@@ -80,6 +81,7 @@ void CriarObjetos() {
 	// Semáforos
 	hSemLivre = CreateSemaphore(NULL, RAM, RAM, L"SemLivre");               /*Espaço Livre*/
 	hSemOcupado = CreateSemaphore(NULL, 0, RAM, L"SemOcupado");             /*Espaço ocupado*/
+	hArquivo = CreateSemaphore(NULL, FILE_SIZE, FILE_SIZE, L"SemArquivo");
 
 	// Eventos
 	//segurança nula, reset automatico, não inicializado, chaveUnica
@@ -94,6 +96,8 @@ void CriarObjetos() {
 	hEventKeyZ = CreateEvent(NULL, FALSE, FALSE, L"KeyZ");                  /*Tecla Z - sinalizador de limpeza de console da tarefa de  alarmes*/
 	//reset manual
 	hEventKeyEsc = CreateEvent(NULL, TRUE, FALSE, L"KeyEsc");               /*Tecla Esc - Encerramento de todas as tarefas e programas*/
+	hArquivoCheio = CreateEvent(NULL, FALSE, TRUE, L"ArquivoCheio");
+	hEventMailslotAlarme = CreateEvent(NULL, FALSE, FALSE, L"MailslotAlarme");
 }
 
 void CriarProcessosExibicao()
@@ -102,6 +106,7 @@ void CriarProcessosExibicao()
 	STARTUPINFO startup_info;				                                   /*StartUpInformation para novo processo*/
 	PROCESS_INFORMATION process_info;	                                       /*Informacoes sobre novo processo criado*/
 	bool statusProcess;
+	
 	ZeroMemory(&startup_info, sizeof(startup_info));                           /* Zera um bloco de memória localizado em &si passando o comprimento a ser zerado. */
 	startup_info.cb = sizeof(startup_info);	                                   /*Tamanho da estrutura em bytes*/
 
@@ -244,8 +249,7 @@ void CriarThreadsSecundarias()
 		hRetiraDadosOtimizacao, hRetiraDadosScada, hRetiraAlarmes,
 		hComunicacao;  /*Tarefas de Comunicacao de dados*/
 
-/*Criando threads de Comunicacao de Dados*/
-
+   /*Criando threads de Comunicacao de Dados*/
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	int i = 1;
 	status = pthread_create(&hComunicacao, NULL, GeraDados, (void*)i);
@@ -275,6 +279,7 @@ void FecharHandlers()
 {
 	/*Fechando todos os handles*/
 	CloseHandle(hTimeOut);
+	CloseHandle(hEventMailslotAlarme);
 	CloseHandle(hEventKeyEsc);
 	CloseHandle(hEventKeyC);
 	CloseHandle(hEventKeyO);
@@ -284,6 +289,8 @@ void FecharHandlers()
 	CloseHandle(hEventKeyR);
 	CloseHandle(hEventKeyL);
 	CloseHandle(hEventKeyZ);
+	CloseHandle(hArquivoCheio);
+	CloseHandle(hArquivo);
 	CloseHandle(hSemOcupado);
 	CloseHandle(hSemLivre);
 	CloseHandle(hMutexBuffer);
@@ -460,7 +467,7 @@ void GeraDadosProcesso(int i) {
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
 	/*Loop de execucao*/
-		/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
+	/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
 	for (int j = 0; j < 6; j++) {
 		k = i / pow(10, (5 - j));
 		k = k % 10;
@@ -622,13 +629,13 @@ void GeraAlarmes(int i) {
 
 	DWORD   ret;
 	BOOL    MemoriaCheia;
+	BOOL    Memory;
 
 	/*Vetor com handles da tarefa*/
 	HANDLE  SemLivre[2] = { hSemLivre, hEventKeyEsc },
-		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
+		    MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
-	/*Loop de execucao*/
-		/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
+	/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
 	for (int j = 0; j < 6; j++) {
 		k = i / pow(10, (5 - j));
 		k = k % 10;
@@ -643,9 +650,24 @@ void GeraAlarmes(int i) {
 	Alarme[9] = '|';
 
 	/*Valores de ID - Identificador do Alarme*/
-	for (int j = 10; j < 14; j++) {
-		Alarme[j] = (rand() % 10) + '0';
+	Alarme[10] = '0';
+	Alarme[11] = '0';
+	
+	int id = 1 + rand() % 10;
+	if (id < 10)
+	{
+		Alarme[12] = '0';
+		Alarme[13] = id + '0';
 	}
+	else
+	{
+		Alarme[12] = '1';
+		Alarme[13] = '0';
+	}
+
+	/*for (int j = 10; j < 14; j++) {
+		Alarme[j] = (rand() % 10) + '0';
+	}*/
 	Alarme[14] = '|';
 
 	/*Valores de PRIORIDADE - Prioridade do Alarme*/
@@ -711,6 +733,7 @@ void GeraAlarmes(int i) {
 			/*Movendo a posicao de livre para o proximo slot da memoria circular*/
 			p_livre = (p_livre + 1) % RAM;
 			MemoriaCheia = (p_livre == p_ocup);
+
 			/*Liberando o semaforo de espacos ocupados*/
 			ReleaseSemaphore(hSemOcupado, 1, NULL);
 
@@ -768,6 +791,7 @@ void* GeraDados(void* arg) {
 			GeraDadosOtimizacao(i);
 			GeraDadosProcesso(i);
 			GeraAlarmes(i);
+			
 			/*Condicao para termino da thread*/
 			if (nTipoEvento == 1) break;
 
@@ -978,11 +1002,20 @@ void* RetiraDadosProcesso(void* arg) {
 void* RetiraAlarmes(void* arg) {
 	int     index = (int)arg, status, i, nTipoEvento = 0;
 	char    Alarmes[27];
-	DWORD   ret;
+	DWORD   ret, numWritten;
+	BOOL     err;
 
 	HANDLE  Events[2] = { hEventKeyA, hEventKeyEsc },
 		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
+
+	WaitForSingleObject(hEventMailslotAlarme, INFINITE);
+
+	hMailslotClienteAlarme = CreateFile(L"\\\\.\\mailslot\\MailslotAlarme", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hMailslotClienteAlarme == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateFile failed: %d\n", GetLastError());
+	}
 
 	while (nTipoEvento != 1) {
 		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
@@ -1021,11 +1054,19 @@ void* RetiraAlarmes(void* arg) {
 						Alarmes[i] = CircularList[p_ocup][i];
 					}
 
-					WaitForSingleObject(hMutexConsole, INFINITE);
-					printf("%.*s\n\n", 27, Alarmes);
-					ReleaseMutex(hMutexConsole);
-
 					p_ocup = (p_ocup + 1) % RAM;
+
+					WaitForSingleObject(hMutexConsole, INFINITE);
+					err = WriteFile(hMailslotClienteAlarme, &Alarmes, sizeof(Alarmes), &numWritten, NULL);
+					if (!err) 
+					{
+						printf("WriteFile error: %d\n", GetLastError());
+					}
+					else if (sizeof(Alarmes) != numWritten)
+					{
+						printf("WriteFile did not read the correct number of bytes!\n");
+					}
+					ReleaseMutex(hMutexConsole);
 
 					ReleaseSemaphore(hSemLivre, 1, NULL);
 				}
@@ -1034,11 +1075,11 @@ void* RetiraAlarmes(void* arg) {
 				}
 
 				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
-
 			}
 		}
 	}
 
+	CloseHandle(hMailslotClienteAlarme);
 	CloseHandle(MutexBuffer);
 	CloseHandle(SemOcupado);
 	CloseHandle(Events);
