@@ -458,7 +458,7 @@ void GeraDadosOtimizacao(int i) {
 }
 
 void GeraDadosProcesso(int i) {
-	int     status, nTipoEvento = 0, k = 0, l = 0;
+	int     status, nTipoEvento = 0, k = 0, l = 0, randon = 0;
 
 	char    Processo[46], Hora[3], Minuto[3], Segundo[3];
 
@@ -564,9 +564,12 @@ void GeraDadosProcesso(int i) {
 		l++;
 	}
 
+	/*Temporizador - Mensagens do Processo se repetem de 500 em 500 ms*/
+	/*475ms levando em  conquista de mutex, semaforo, criacao e gravacao dos dados na lista demora em torno de 25 ms*/
+	WaitForSingleObject(hTimeOut, 475);
+
 	/*Esperando o semaforo de espacos livres*/
 	nTipoEvento = WaitForMultipleObjects(2, SemLivre, FALSE, INFINITE);
-
 
 	/*Condição para termino do processo*/
 	if (nTipoEvento == 1) {
@@ -621,22 +624,25 @@ void GeraDadosProcesso(int i) {
 			}
 		}
 	}
-	Sleep(1000);
+	
+	WaitForSingleObject(hTimeOut, 500);
 }
 
 void GeraAlarmes(int i) {
 	/*Declarando variaveis locais da funcao LeituraSCADA()*/
-	int     status, nTipoEvento = 0, k = 0, l = 0;
+	int     status, nTipoEvento = 0, k = 0, l = 0, randon = 0, time = 0, deadline = 5000;
 
 	char    Alarme[27], Hora[3], Minuto[3], Segundo[3];
 
-	DWORD   ret;
+	DWORD   ret, ticksA, ticksB;
 	BOOL    MemoriaCheia;
 	BOOL    Memory;
 
 	/*Vetor com handles da tarefa*/
 	HANDLE  SemLivre[2] = { hSemLivre, hEventKeyEsc },
 		    MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
+
+	ticksA = GetTickCount64();
 
 	/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
 	for (int j = 0; j < 6; j++) {
@@ -712,6 +718,8 @@ void GeraAlarmes(int i) {
 		l++;
 	}
 
+	ticksB = GetTickCount64();
+
 	/*Esperando o semaforo de espacos livres*/
 	nTipoEvento = WaitForMultipleObjects(2, SemLivre, FALSE, INFINITE);
 
@@ -770,7 +778,16 @@ void GeraAlarmes(int i) {
 		}
 	}
 
-	Sleep(1000);
+	time = deadline - (ticksB - ticksA);
+
+	if (time <= 5000) {
+		randon = (rand() % time);
+	}
+	else {
+		randon = (time - 5000) + (rand() % 5000);
+	}
+
+	WaitForSingleObject(hTimeOut, (randon));
 }
 
 void* GeraDados(void* arg) {
@@ -925,7 +942,7 @@ void* RetiraDadosOtimizacao(void* arg) {
 void* RetiraDadosProcesso(void* arg) {
 	int     index = (int)arg, status, i, nTipoEvento = 0;
 	char    DadosProcesso[46];
-	DWORD   ret, numWritten;
+	DWORD   ret, numWritten = 0;
 	BOOL     err;
 
 	HANDLE  Events[2] = { hEventKeyP, hEventKeyEsc },
@@ -938,6 +955,14 @@ void* RetiraDadosProcesso(void* arg) {
 	if (hMailslotClienteProcesso == INVALID_HANDLE_VALUE)
 	{
 		printf("CreateFile failed: %d\n", GetLastError());
+	}
+	else if (sizeof(DadosProcesso) != numWritten)
+	{
+		printf("WriteFile did not read the correct number of bytes!\n");
+	}
+	else
+	{
+		printf("Mailslot Cliente - Processo de Alarmes criado com sucesso\n");
 	}
 
 
@@ -988,6 +1013,7 @@ void* RetiraDadosProcesso(void* arg) {
 					{
 						printf("WriteFile did not read the correct number of bytes!\n");
 					}
+
 					ReleaseMutex(hMutexConsole);
 
 					p_ocup = (p_ocup + 1) % RAM;
@@ -1083,6 +1109,7 @@ void* RetiraAlarmes(void* arg) {
 					{
 						printf("WriteFile did not read the correct number of bytes!\n");
 					}
+					
 					ReleaseMutex(hMutexConsole);
 
 					ReleaseSemaphore(hSemLivre, 1, NULL);
