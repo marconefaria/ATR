@@ -28,13 +28,11 @@ char descricaoAlarme[10][30] =
 
 int main() {
 	setlocale(LC_ALL, "Portuguese");
-	
 	int     nTipoEvento = 3, key = 0, index = 0;
 
 	bool status;
 
-	char    Alarme[27], buffer[27];
-
+	char    buffer[27];
 
 	DWORD   ret, dwBytesLidos, MessageCount;
 
@@ -88,9 +86,7 @@ int main() {
 			system("cls");
 		}
 
-		// GetMailslotInfo(hMailslotServerAlarme, (LPDWORD)NULL, (LPDWORD)NULL, &MessageCount, (LPDWORD)NULL);
 		if (nTipoEvento == 3) {
-			//status = ReadFile(hMailslotServerAlarme, &MsgBuffer, sizeof(MsgBuffer), &dwBytesLidos, NULL);
 			status = GetMailslotInfo(hMailslotServerAlarme, 0, &MessageCount, 0, 0);
 			if (!status)
 			{
@@ -111,16 +107,14 @@ int main() {
 			{
 				/*TIMESTAMP*/
 				for (int j = 0; j < 8; j++) {
-					Alarme[j] = buffer[(j + 19)];
-					printf("%c", Alarme[j]);
+					printf("%c", buffer[(j + 19)]);
 				}
 
 				printf(" NSEQ: ");
 
 				/*NSEQ*/
 				for (int j = 8; j < 14; j++) {
-					Alarme[j] = buffer[(j - 8)];
-					printf("%c", Alarme[j]);
+					printf("%c", buffer[(j - 8)]);
 				}
 
 				index = (int)buffer[13] - 48;
@@ -128,8 +122,7 @@ int main() {
 
 				/*PRIORIDADE*/
 				for (int j = 18; j < 21; j++) {
-					Alarme[j] = buffer[(j - 3)];
-					printf("%c", Alarme[j]);
+					printf("%c", buffer[(j - 3)]);
 				}
 			}
 

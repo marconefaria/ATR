@@ -45,11 +45,12 @@ int n_mensagem = 0;
 //Objetos do escopo global
 HANDLE hMutexBuffer, hMutexConsole;
 HANDLE hSemLivre, hSemOcupado, hArquivo;
-HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc, hTimeOut, hEventMailslotAlarme;
+HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc, hTimeOut;
+HANDLE hEventMailslotAlarme, hEventMailslotProcesso;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
 HANDLE hArquivoCheio;
-HANDLE hMailslotClienteAlarme;
+HANDLE hMailslotClienteAlarme, hMailslotClienteProcesso;
 
 int main() {
 	WaitForSingleObject(hMutexConsole, INFINITE);
@@ -98,6 +99,7 @@ void CriarObjetos() {
 	hEventKeyEsc = CreateEvent(NULL, TRUE, FALSE, L"KeyEsc");               /*Tecla Esc - Encerramento de todas as tarefas e programas*/
 	hArquivoCheio = CreateEvent(NULL, FALSE, TRUE, L"ArquivoCheio");
 	hEventMailslotAlarme = CreateEvent(NULL, FALSE, FALSE, L"MailslotAlarme");
+	hEventMailslotProcesso = CreateEvent(NULL, FALSE, FALSE, L"MailslotProcesso");
 }
 
 void CriarProcessosExibicao()
@@ -280,6 +282,7 @@ void FecharHandlers()
 	/*Fechando todos os handles*/
 	CloseHandle(hTimeOut);
 	CloseHandle(hEventMailslotAlarme);
+	CloseHandle(hEventMailslotProcesso);
 	CloseHandle(hEventKeyEsc);
 	CloseHandle(hEventKeyC);
 	CloseHandle(hEventKeyO);
@@ -665,9 +668,6 @@ void GeraAlarmes(int i) {
 		Alarme[13] = '0';
 	}
 
-	/*for (int j = 10; j < 14; j++) {
-		Alarme[j] = (rand() % 10) + '0';
-	}*/
 	Alarme[14] = '|';
 
 	/*Valores de PRIORIDADE - Prioridade do Alarme*/
@@ -925,11 +925,20 @@ void* RetiraDadosOtimizacao(void* arg) {
 void* RetiraDadosProcesso(void* arg) {
 	int     index = (int)arg, status, i, nTipoEvento = 0;
 	char    DadosProcesso[46];
-	DWORD   ret;
+	DWORD   ret, numWritten;
+	BOOL     err;
 
 	HANDLE  Events[2] = { hEventKeyP, hEventKeyEsc },
 		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
+
+	WaitForSingleObject(hEventMailslotProcesso, INFINITE);
+
+	hMailslotClienteProcesso = CreateFile(L"\\\\.\\mailslot\\MailslotProcesso", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hMailslotClienteProcesso == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateFile failed: %d\n", GetLastError());
+	}
 
 
 	while (nTipoEvento != 1) {
@@ -964,13 +973,21 @@ void* RetiraDadosProcesso(void* arg) {
 
 			if (nTipoEvento == 1) break;
 			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
-				if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
+				if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  22 = Processo */
 					for (int i = 0; i < 46; i++) {
 						DadosProcesso[i] = CircularList[p_ocup][i];
 					}
 
 					WaitForSingleObject(hMutexConsole, INFINITE);
-					printf("%.*s\n\n", 46, DadosProcesso);
+					err = WriteFile(hMailslotClienteProcesso, &DadosProcesso, sizeof(DadosProcesso), &numWritten, NULL);
+					if (!err)
+					{
+						printf("WriteFile error: %d\n", GetLastError());
+					}
+					else if (sizeof(DadosProcesso) != numWritten)
+					{
+						printf("WriteFile did not read the correct number of bytes!\n");
+					}
 					ReleaseMutex(hMutexConsole);
 
 					p_ocup = (p_ocup + 1) % RAM;
@@ -987,7 +1004,7 @@ void* RetiraDadosProcesso(void* arg) {
 		}
 	}
 
-
+	CloseHandle(hMailslotClienteProcesso);
 	CloseHandle(MutexBuffer);
 	CloseHandle(SemOcupado);
 	CloseHandle(Events);
