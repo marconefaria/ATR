@@ -14,10 +14,9 @@
 #include <string.h>
 #include <locale.h>
 #include <pthread.h>
-#include "CheckForError.h"   
 #include <string>
-
-#define _CHECKERROR	    1				                                        
+#include "CheckForError.h"   
+		                                        
 #define RAM             100                                                     
 #define	ESC_KEY			27                                                      
 #define FILE_SIZE       200     
@@ -47,12 +46,14 @@ int n_mensagem = 0;
 //Objetos do escopo global
 HANDLE hMutexBuffer, hMutexConsole;
 HANDLE hSemLivre, hSemOcupado;
-HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc, hTimeOut;
+HANDLE hEventKeyC, hEventKeyO, hEventKeyP, hEventKeyA, hEventKeyT, hEventKeyR, hEventKeyL, hEventKeyZ, hEventKeyEsc;
+HANDLE hEventMailslotAlarme, hEventMailslotProcesso;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hFile, hArquivo, hArquivoCheio;
+HANDLE hMailslotClienteAlarme, hMailslotClienteProcesso;
+HANDLE hTimeOut;
 
 int main() {
-
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	setlocale(LC_ALL, "Portuguese");
 	SetConsoleTitle(L"| Terminal Principal |");                              /*Altera nome do terminal da thread primaria*/
@@ -62,20 +63,12 @@ int main() {
 	CriarProcessosExibicao();
 	CriarThreadsSecundarias();
 	CapturarTeclado();                                                      /*Faz a leitura do teclado enquanto a execução está ativa. A tecla ESC encerra a execução*/
-	WaitForSingleObject(hTimeOut, 5000);
 	FecharHandlers();                                                       /*Aguardando o fim dos processos e threads antes de encerrar*/
 
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	printf("Finalizando - Inputs do teclado\n");
-	ReleaseMutex(hMutexConsole);
-
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	ReleaseMutex(hMutexConsole);
 	return EXIT_SUCCESS;                                                   /*fim da funcao main*/
 }
 
 void CriarObjetos() {
-
 	// Mutexes
 	hMutexBuffer = CreateMutex(NULL, FALSE, L"MutexBuffer");                /*Para controlar o acesso ao buffer de mensagem*/
 	hMutexConsole = CreateMutex(NULL, FALSE, L"MutexConsole");              /*Para controlar o acesso as escritas do console*/
@@ -96,10 +89,14 @@ void CriarObjetos() {
 	hEventKeyR = CreateEvent(NULL, FALSE, FALSE, L"KeyR");                  /*Tecla R - sinalizador on-off da tarefa de exibicao de dados de processo */
 	hEventKeyL = CreateEvent(NULL, FALSE, FALSE, L"KeyL");                  /*Tecla L - sinalizador on-off da tarefa de exibicao de alarmes */
 	hEventKeyZ = CreateEvent(NULL, FALSE, FALSE, L"KeyZ");                  /*Tecla Z - sinalizador de limpeza de console da tarefa de  alarmes*/
-	//reset manual
+							//reset manual
 	hEventKeyEsc = CreateEvent(NULL, TRUE, FALSE, L"KeyEsc");               /*Tecla Esc - Encerramento de todas as tarefas e programas*/
+	
 	hArquivoCheio = CreateEvent(NULL, FALSE, TRUE, L"ArquivoCheio");
+	hEventMailslotAlarme = CreateEvent(NULL, FALSE, FALSE, L"MailslotAlarme");
+	hEventMailslotProcesso = CreateEvent(NULL, FALSE, FALSE, L"MailslotProcesso");
 
+	//Arquivo txt para escrita das mensagens de otimizacao
 	hFile = CreateFile(
 		L"..\\ArquivoCircular.txt",
 		GENERIC_WRITE | GENERIC_READ,
@@ -115,7 +112,6 @@ void CriarObjetos() {
 	else {
 		printf("Arquivo criado\n\n");
 	}
-
 }
 
 void CriarProcessosExibicao()
@@ -124,6 +120,7 @@ void CriarProcessosExibicao()
 	STARTUPINFO startup_info;				                                   /*StartUpInformation para novo processo*/
 	PROCESS_INFORMATION process_info;	                                       /*Informacoes sobre novo processo criado*/
 	bool statusProcess;
+	
 	ZeroMemory(&startup_info, sizeof(startup_info));                           /* Zera um bloco de memória localizado em &si passando o comprimento a ser zerado. */
 	startup_info.cb = sizeof(startup_info);	                                   /*Tamanho da estrutura em bytes*/
 
@@ -207,46 +204,46 @@ void CapturarTeclado()
 		switch (key) {
 		case 'c':
 		case 'C':
-			SetEvent(hEventKeyC);
 			printf("Tecla C pressionada\n");
+			SetEvent(hEventKeyC);
 			break;
 		case 'o':
 		case 'O':
-			SetEvent(hEventKeyO);
 			printf("Tecla O pressionada\n");
+			SetEvent(hEventKeyO);
 			break;
 		case 'p':
 		case 'P':
-			SetEvent(hEventKeyP);
 			printf("Tecla P pressionada\n");
+			SetEvent(hEventKeyP);
 			break;
 		case 'a':
 		case 'A':
-			SetEvent(hEventKeyA);
 			printf("Tecla A pressionada\n");
+			SetEvent(hEventKeyA);
 			break;
 		case 't':
 		case 'T':
-			SetEvent(hEventKeyT);
 			printf("Tecla T pressionada\n");
+			SetEvent(hEventKeyT);
 			break;
 		case 'r':
 		case 'R':
-			SetEvent(hEventKeyR);
 			printf("Tecla R pressionada\n");
+			SetEvent(hEventKeyR);
 			break;
 		case 'l':
 		case 'L':
-			SetEvent(hEventKeyL);
 			printf("Tecla L pressionada\n");
+			SetEvent(hEventKeyL);
 			break;
 		case 'z':
 		case 'Z':
-			SetEvent(hEventKeyZ);
 			printf("Tecla Z pressionada\n");
+			SetEvent(hEventKeyZ);
 			break;
 		case ESC_KEY:
-			printf("\n");
+			printf("Tecla ESC pressionada. Encerrar Processo\n");
 			SetEvent(hEventKeyEsc);
 			break;
 		default:
@@ -266,8 +263,7 @@ void CriarThreadsSecundarias()
 		hRetiraDadosOtimizacao, hRetiraDadosScada, hRetiraAlarmes,
 		hComunicacao;  /*Tarefas de Comunicacao de dados*/
 
-/*Criando threads de Comunicacao de Dados*/
-
+   /*Criando threads de Comunicacao de Dados*/
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	int i = 1;
 	status = pthread_create(&hComunicacao, NULL, GeraDados, (void*)i);
@@ -297,6 +293,8 @@ void FecharHandlers()
 {
 	/*Fechando todos os handles*/
 	CloseHandle(hTimeOut);
+	CloseHandle(hEventMailslotAlarme);
+	CloseHandle(hEventMailslotProcesso);
 	CloseHandle(hEventKeyEsc);
 	CloseHandle(hEventKeyC);
 	CloseHandle(hEventKeyO);
@@ -306,6 +304,8 @@ void FecharHandlers()
 	CloseHandle(hEventKeyR);
 	CloseHandle(hEventKeyL);
 	CloseHandle(hEventKeyZ);
+	CloseHandle(hArquivoCheio);
+	CloseHandle(hArquivo);
 	CloseHandle(hSemOcupado);
 	CloseHandle(hSemLivre);
 	CloseHandle(hMutexBuffer);
@@ -418,6 +418,8 @@ void GeraDadosOtimizacao(int i) {
 		return;
 	}
 	else if (nTipoEvento == 0) {                                            /*Tem permissao pra escrever pois ninguem mais está escrevendo*/
+		int tempo = (rand() % 4000) + 1000; 
+		WaitForSingleObject(hTimeOut, tempo);
 
 		nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);      /*Conquistando o mutex da lista circular*/
 
@@ -461,16 +463,12 @@ void GeraDadosOtimizacao(int i) {
 					return;
 				}
 			}
-			else {
-				ReleaseSemaphore(hSemLivre, 1, NULL);
-			}
 		}
 	}
-	Sleep(1000);
 }
 
 void GeraDadosProcesso(int i) {
-	int     status, nTipoEvento = 0, k = 0, l = 0;
+	int     status, nTipoEvento = 0, k = 0, l = 0, randon = 0;
 
 	char    Processo[46], Hora[3], Minuto[3], Segundo[3];
 
@@ -482,7 +480,7 @@ void GeraDadosProcesso(int i) {
 		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
 	/*Loop de execucao*/
-		/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
+	/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
 	for (int j = 0; j < 6; j++) {
 		k = i / pow(10, (5 - j));
 		k = k % 10;
@@ -576,9 +574,12 @@ void GeraDadosProcesso(int i) {
 		l++;
 	}
 
+	/*Temporizador - Mensagens do Processo se repetem de 500 em 500 ms*/
+	/*475ms levando em  conquista de mutex, semaforo, criacao e gravacao dos dados na lista demora em torno de 25 ms*/
+	WaitForSingleObject(hTimeOut, 475);
+
 	/*Esperando o semaforo de espacos livres*/
 	nTipoEvento = WaitForMultipleObjects(2, SemLivre, FALSE, INFINITE);
-
 
 	/*Condição para termino do processo*/
 	if (nTipoEvento == 1) {
@@ -628,29 +629,29 @@ void GeraDadosProcesso(int i) {
 					return;
 				}
 			}
-			else {
-				ReleaseSemaphore(hSemLivre, 1, NULL);
-			}
 		}
 	}
-	Sleep(1000);
+	
+	WaitForSingleObject(hTimeOut, 500);
 }
 
 void GeraAlarmes(int i) {
 	/*Declarando variaveis locais da funcao LeituraSCADA()*/
-	int     status, nTipoEvento = 0, k = 0, l = 0;
+	int     status, nTipoEvento = 0, k = 0, l = 0, randon = 0, time = 0, deadline = 5000;
 
 	char    Alarme[27], Hora[3], Minuto[3], Segundo[3];
 
-	DWORD   ret;
+	DWORD   ret, ticksA, ticksB;
 	BOOL    MemoriaCheia;
+	BOOL    Memory;
 
 	/*Vetor com handles da tarefa*/
 	HANDLE  SemLivre[2] = { hSemLivre, hEventKeyEsc },
-		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
+		    MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
 
-	/*Loop de execucao*/
-		/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
+	ticksA = GetTickCount64();
+
+	/*Valores de NSEQ - Numero sequencial de 1 ate 999999*/
 	for (int j = 0; j < 6; j++) {
 		k = i / pow(10, (5 - j));
 		k = k % 10;
@@ -665,9 +666,21 @@ void GeraAlarmes(int i) {
 	Alarme[9] = '|';
 
 	/*Valores de ID - Identificador do Alarme*/
-	for (int j = 10; j < 14; j++) {
-		Alarme[j] = (rand() % 10) + '0';
+	Alarme[10] = '0';
+	Alarme[11] = '0';
+	
+	int id = 1 + rand() % 10;
+	if (id < 10)
+	{
+		Alarme[12] = '0';
+		Alarme[13] = id + '0';
 	}
+	else
+	{
+		Alarme[12] = '1';
+		Alarme[13] = '0';
+	}
+
 	Alarme[14] = '|';
 
 	/*Valores de PRIORIDADE - Prioridade do Alarme*/
@@ -712,6 +725,8 @@ void GeraAlarmes(int i) {
 		l++;
 	}
 
+	ticksB = GetTickCount64();
+
 	/*Esperando o semaforo de espacos livres*/
 	nTipoEvento = WaitForMultipleObjects(2, SemLivre, FALSE, INFINITE);
 
@@ -733,6 +748,7 @@ void GeraAlarmes(int i) {
 			/*Movendo a posicao de livre para o proximo slot da memoria circular*/
 			p_livre = (p_livre + 1) % RAM;
 			MemoriaCheia = (p_livre == p_ocup);
+
 			/*Liberando o semaforo de espacos ocupados*/
 			ReleaseSemaphore(hSemOcupado, 1, NULL);
 
@@ -763,19 +779,25 @@ void GeraAlarmes(int i) {
 					return;
 				}
 			}
-			else {
-				ReleaseSemaphore(hSemLivre, 1, NULL);
-			}
 		}
 	}
 
-	Sleep(1000);
+	time = deadline - (ticksB - ticksA);
+
+	if (time <= 5000) {
+		randon = (rand() % time);
+	}
+	else {
+		randon = (time - 5000) + (rand() % 5000);
+	}
+
+	WaitForSingleObject(hTimeOut, (randon));
 }
 
 void* GeraDados(void* arg) {
 	/*Declarando variaveis locais da funcao LeituraSCADA()*/
 	int     index = (int)arg, status, i, nTipoEvento = 0;
-
+	int		desbloqueado = true;
 	char    Hora[3], Minuto[3], Segundo[3];
 
 	DWORD   ret;
@@ -786,54 +808,42 @@ void* GeraDados(void* arg) {
 
 	/*Loop de execucao*/
 	while (nTipoEvento != 1) {
+
 		for (i = 1; i < 1000000; ++i) {
-			GeraDadosOtimizacao(i);
-			//GeraDadosProcesso(i);
-			//GeraAlarmes(i);
-			/*Condicao para termino da thread*/
+
+			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
+
 			if (nTipoEvento == 1) break;
 
-			/*Bloqueio e desbloqueio da thread GeraAlarmes*/
-			ret = WaitForMultipleObjects(2, Events, FALSE, 1);
-			nTipoEvento = ret - WAIT_OBJECT_0;
-
-			if (nTipoEvento == 0) {
+			if (nTipoEvento == 0 && desbloqueado) {
+				desbloqueado = false;
 				WaitForSingleObject(hMutexConsole, INFINITE);
 				SetConsoleTextAttribute(hConsole, 12);
 				printf("BLOQUEADO");
 				SetConsoleTextAttribute(hConsole, 15);
 				printf(" - Thread Gera Dados\n");
 				ReleaseMutex(hMutexConsole);
-
-				nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-
-				if (nTipoEvento == 0) {
-					WaitForSingleObject(hMutexConsole, INFINITE);
-					SetConsoleTextAttribute(hConsole, 10);
-					printf("DESBLOQUEADO");
-					SetConsoleTextAttribute(hConsole, 15);
-					printf(" - Thread Gera Dados\n");
-					ReleaseMutex(hMutexConsole);
-				}
-				if (nTipoEvento == 1) {
-					break;
-				}
 			}
-			else if (nTipoEvento == 1) {
-				break;
+			else if (nTipoEvento == 0 && !desbloqueado) 
+			{
+				desbloqueado = true;
+				WaitForSingleObject(hMutexConsole, INFINITE);
+				SetConsoleTextAttribute(hConsole, 10);
+				printf("DESBLOQUEADO");
+				SetConsoleTextAttribute(hConsole, 15);
+				printf(" - Thread Gera Dados\n");
+				ReleaseMutex(hMutexConsole);
+			}
+
+			if (desbloqueado)
+			{
+				GeraDadosOtimizacao(i);
+				GeraDadosProcesso(i);
+				GeraAlarmes(i);
 			}
 		}
-
-		/*Condição para termino do processo*/
-		if (nTipoEvento == 1) break;
 	}
 
-	/*Fechando handles*/
-	CloseHandle(Events);
-
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	printf("Finalizando - Gera Dados\n");
-	ReleaseMutex(hMutexConsole);
 	pthread_exit((void*)index);
 
 	return (void*)index;
@@ -846,10 +856,9 @@ void* GeraDados(void* arg) {
 /*  Processos e Alarmes são enviados para as threads de Exibicao*/
 
 void* RetiraDadosOtimizacao(void* arg) {
-	int     index = (int)arg, status, i, nTipoEvento = 0;
+	int     index = (int)arg, nTipoEvento = 0;
 	char    DadosOtimizacao[38];
 	bool	desbloqueado = true;
-	DWORD   dwBytesToWrite, dwBytesWritten, dwPos;
 
 	HANDLE  Events[2] = { hEventKeyO, hEventKeyEsc };
 
@@ -889,35 +898,200 @@ void* RetiraDadosOtimizacao(void* arg) {
 						for (int i = 0; i < 38; i++) {
 							DadosOtimizacao[i] = CircularList[p_ocup][i];
 						}
-						WaitForSingleObject(hMutexConsole, INFINITE);
-						printf("Escrever no arquivo: %.*s\n\n", 38, DadosOtimizacao);
-						ReleaseMutex(hMutexConsole);
-
 						p_ocup = (p_ocup + 1) % RAM;
-
-						/*Setando valores dos parametros das funcoes de tratamento de arquivo*/
 						EscreverDadosArquivo(DadosOtimizacao);
-
-						// escrever no arquivo
+						ReleaseSemaphore(hSemLivre, 1, NULL);
 					}
-					ReleaseSemaphore(hSemOcupado, 1, NULL);
+					else {
+						ReleaseSemaphore(hSemOcupado, 1, NULL);
+					}
 					ReleaseMutex(hMutexBuffer);
 				}
 			}
 		}		
 	}
 
-	CloseHandle(Events);
+	pthread_exit((void*)index);
+	return (void*)index;
+}
 
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	printf("Finalizando - Captura de Dados de Otimizacao\n");
-	ReleaseMutex(hMutexConsole);
+void* RetiraDadosProcesso(void* arg) {
+	bool	desbloqueado = true;
+	int     index = (int)arg, nTipoEvento = 0;
+	char    DadosProcesso[46];
+	DWORD   numWritten = 0;
+	BOOL     err;
+
+	HANDLE  Events[2] = { hEventKeyP, hEventKeyEsc };
+
+	WaitForSingleObject(hEventMailslotProcesso, INFINITE);
+
+	hMailslotClienteProcesso = CreateFile(L"\\\\.\\mailslot\\MailslotProcesso", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hMailslotClienteProcesso == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateFile failed: %d\n", GetLastError());
+	}
+	else if (sizeof(DadosProcesso) != numWritten)
+	{
+		printf("WriteFile did not read the correct number of bytes!\n");
+	}
+	else
+	{
+		printf("Mailslot Cliente - Processo de Alarmes criado com sucesso\n");
+	}
+
+
+	while (nTipoEvento != 1) {
+		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
+
+		if (nTipoEvento == 1) break;
+
+		if (nTipoEvento == 0 && desbloqueado) 
+		{
+			desbloqueado = false;
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 12);
+			printf("BLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Dados Processo\n");
+			ReleaseMutex(hMutexConsole);
+		}
+		else if (nTipoEvento == 0 && !desbloqueado)
+		{
+			desbloqueado = true;
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Dados Processo\n");
+			ReleaseMutex(hMutexConsole);
+		}
+
+		if (desbloqueado)
+		{
+			nTipoEvento = WaitForSingleObject(hSemOcupado, 1);			/*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
+			if (nTipoEvento == 0) {										/*Semafoto de espacos ocupados Conquistado*/
+				nTipoEvento = WaitForSingleObject(hMutexBuffer, 1);		/*Esperando o mutex da seção critica - buffer */
+				if (nTipoEvento == 0) {									/*Seção crítica conquistada*/
+					if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  22 = Processo */
+						for (int i = 0; i < 46; i++) {
+							DadosProcesso[i] = CircularList[p_ocup][i];
+						}
+
+						WaitForSingleObject(hMutexConsole, INFINITE);
+						err = WriteFile(hMailslotClienteProcesso, &DadosProcesso, sizeof(DadosProcesso), &numWritten, NULL);
+						if (!err)
+						{
+							printf("WriteFile error: %d\n", GetLastError());
+						}
+						else if (sizeof(DadosProcesso) != numWritten)
+						{
+							printf("WriteFile did not read the correct number of bytes!\n");
+						}
+
+						ReleaseMutex(hMutexConsole);
+
+						p_ocup = (p_ocup + 1) % RAM;
+						ReleaseSemaphore(hSemLivre, 1, NULL);
+					}
+					else {
+						ReleaseSemaphore(hSemOcupado, 1, NULL);
+					}
+					ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
+				}
+			}
+		}
+	}
+
+	pthread_exit((void*)index);
+	return (void*)index;
+}
+
+void* RetiraAlarmes(void* arg) {
+	int     index = (int)arg, nTipoEvento = 0;
+	char    Alarmes[27];
+	DWORD    numWritten;
+	BOOL     err;
+	BOOL desbloqueado = true;
+
+	HANDLE  Events[2] = { hEventKeyA, hEventKeyEsc };
+
+	WaitForSingleObject(hEventMailslotAlarme, INFINITE);
+
+	hMailslotClienteAlarme = CreateFile(L"\\\\.\\mailslot\\MailslotAlarme", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hMailslotClienteAlarme == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateFile failed: %d\n", GetLastError());
+	}
+
+	while (nTipoEvento != 1) {
+		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
+
+		if (nTipoEvento == 1) break;
+
+		if (nTipoEvento == 0 && desbloqueado)
+		{
+			desbloqueado = false;
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 12);
+			printf("BLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Alarmes\n");
+			ReleaseMutex(hMutexConsole);
+		}
+		else if (nTipoEvento == 0 && !desbloqueado)
+		{
+			desbloqueado = true;
+			WaitForSingleObject(hMutexConsole, INFINITE);
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Thread Retira Alarmes\n");
+			ReleaseMutex(hMutexConsole);
+		}
+		if (desbloqueado)
+		{
+			nTipoEvento = WaitForSingleObject(hSemOcupado, 1);			/*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
+			if (nTipoEvento == 0) {										/*Semafoto de espacos ocupados Conquistado*/
+				nTipoEvento = WaitForSingleObject(hMutexBuffer, 1);		/*Esperando o mutex da seção critica - buffer */
+				if (nTipoEvento == 0) {									/*Seção crítica conquistada*/
+					if (CircularList[p_ocup][7] == '5' && CircularList[p_ocup][8] == '5') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
+						for (int i = 0; i < 27; i++) {
+							Alarmes[i] = CircularList[p_ocup][i];
+						}
+
+						p_ocup = (p_ocup + 1) % RAM;
+
+						WaitForSingleObject(hMutexConsole, INFINITE);
+						err = WriteFile(hMailslotClienteAlarme, &Alarmes, sizeof(Alarmes), &numWritten, NULL);
+						if (!err)
+						{
+							printf("WriteFile error: %d\n", GetLastError());
+						}
+						else if (sizeof(Alarmes) != numWritten)
+						{
+							printf("WriteFile did not read the correct number of bytes!\n");
+						}
+
+						ReleaseMutex(hMutexConsole);
+
+						ReleaseSemaphore(hSemLivre, 1, NULL);
+					}
+					else {
+						ReleaseSemaphore(hSemOcupado, 1, NULL);
+					}
+					ReleaseMutex(hMutexBuffer);
+				}
+			}
+		}
+	}
+	
 	pthread_exit((void*)index);
 	return (void*)index;
 }
 
 void EscreverDadosArquivo(char* DadosOtimizacao) {
-	DWORD dwBytesToWrite = (DWORD)strlen(DadosOtimizacao);
+	DWORD dwBytesToWrite = (DWORD)strlen(DadosOtimizacao) + 1;
 	DWORD dwBytesWritten = 0;
 
 	/*Semaforo que espera o arquivo de disco*/
@@ -930,170 +1104,27 @@ void EscreverDadosArquivo(char* DadosOtimizacao) {
 		ResetEvent(hArquivoCheio);
 	}
 
-	LockFile(hFile, 0, 38 * FILE_SIZE, 38 * FILE_SIZE, NULL);
-	//LockFile(hFile, 0, FILE_SIZE, FILE_SIZE, NULL);
-	SetFilePointer(hFile, 0, NULL, FILE_END);
+	status = LockFile(hFile, 0, NULL, 39 * FILE_SIZE, NULL);
+	if (status != 0)
+	{
+		SetFilePointer(hFile, n_mensagem * 39, NULL, FILE_BEGIN);
 
-	/*Escrita em arquivo*/
-	status = WriteFile(hFile, DadosOtimizacao, 38, &dwBytesWritten, NULL);
-	if (status != 0) {
-		n_mensagem = (n_mensagem + 1) % FILE_SIZE;
-	}
-
-	WriteFile(hFile, "\n", strlen("\n"), &dwBytesWritten, NULL);
-
-	/*Desbloqueando acesso ao arquivo*/
-	UnlockFile(hFile, 0, 38 * FILE_SIZE, 38 * FILE_SIZE, NULL);	
-}
-
-void* RetiraDadosProcesso(void* arg) {
-	int     index = (int)arg, status, i, nTipoEvento = 0;
-	char    DadosProcesso[46];
-	DWORD   ret;
-
-	HANDLE  Events[2] = { hEventKeyP, hEventKeyEsc },
-		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
-		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
-
-
-	while (nTipoEvento != 1) {
-		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
-
-		if (nTipoEvento == 0) {
-			WaitForSingleObject(hMutexConsole, INFINITE);
-			SetConsoleTextAttribute(hConsole, 12);
-			printf("BLOQUEADO");
-			SetConsoleTextAttribute(hConsole, 15);
-			printf(" - Thread Retira Dados Processo\n");
-			ReleaseMutex(hMutexConsole);
-
-			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-
-			WaitForSingleObject(hMutexConsole, INFINITE);
-			SetConsoleTextAttribute(hConsole, 10);
-			printf("DESBLOQUEADO");
-			SetConsoleTextAttribute(hConsole, 15);
-			printf(" - Thread Retira Dados Processo\n");
-			ReleaseMutex(hMutexConsole);
-		}
-
-		if (nTipoEvento == 1) break;
-
-		nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, INFINITE);
-
-		if (nTipoEvento == 1) break;
-
-		else if (nTipoEvento == 0) {
-			nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
-
-			if (nTipoEvento == 1) break;
-			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
-				if (CircularList[p_ocup][7] == '2' && CircularList[p_ocup][8] == '2') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
-					for (int i = 0; i < 46; i++) {
-						DadosProcesso[i] = CircularList[p_ocup][i];
-					}
-
-					WaitForSingleObject(hMutexConsole, INFINITE);
-					printf("%.*s\n\n", 46, DadosProcesso);
-					ReleaseMutex(hMutexConsole);
-
-					p_ocup = (p_ocup + 1) % RAM;
-
-					ReleaseSemaphore(hSemLivre, 1, NULL);
-				}
-				else {
-					ReleaseSemaphore(hSemOcupado, 1, NULL);
-				}
-
-				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
-
+		/*Escrita em arquivo*/
+		status = WriteFile(hFile, DadosOtimizacao, 38, &dwBytesWritten, NULL);
+		if (status != 0) {
+			n_mensagem = (n_mensagem + 1) % FILE_SIZE;
+			if (dwBytesWritten != 38) {
+				printf("Erro: quantidade de dados escritas %lu \n", dwBytesWritten);
+			}
+			status = WriteFile(hFile, "\n", strlen("\n"), &dwBytesWritten, NULL);
+			if (status == 0)
+			{
+				printf("Erro ao quebrar linha: %d \n", GetLastError());
 			}
 		}
-	}
-
-
-	CloseHandle(MutexBuffer);
-	CloseHandle(SemOcupado);
-	CloseHandle(Events);
-
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	printf("Finalizando - Captura de dados de processo\n");
-	ReleaseMutex(hMutexConsole);
-	pthread_exit((void*)index);
-	return (void*)index;
-}
-
-void* RetiraAlarmes(void* arg) {
-	int     index = (int)arg, status, i, nTipoEvento = 0;
-	char    Alarmes[27];
-	DWORD   ret;
-
-	HANDLE  Events[2] = { hEventKeyA, hEventKeyEsc },
-		SemOcupado[2] = { hSemOcupado, hEventKeyEsc },
-		MutexBuffer[2] = { hMutexBuffer, hEventKeyEsc };
-
-	while (nTipoEvento != 1) {
-		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
-
-		if (nTipoEvento == 0) {
-			WaitForSingleObject(hMutexConsole, INFINITE);
-			SetConsoleTextAttribute(hConsole, 12);
-			printf("BLOQUEADO");
-			SetConsoleTextAttribute(hConsole, 15);
-			printf(" - Thread Retira Alarmes\n");
-			ReleaseMutex(hMutexConsole);
-
-			nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-
-			WaitForSingleObject(hMutexConsole, INFINITE);
-			SetConsoleTextAttribute(hConsole, 10);
-			printf("DESBLOQUEADO");
-			SetConsoleTextAttribute(hConsole, 15);
-			printf(" - Thread Retira Alarmes\n");
-			ReleaseMutex(hMutexConsole);
+		else {
+			printf("Erro ao escrever no arquivo: %d \n", GetLastError());
 		}
-
-		if (nTipoEvento == 1) break;
-
-		nTipoEvento = WaitForMultipleObjects(2, SemOcupado, FALSE, INFINITE);
-
-		if (nTipoEvento == 1) break;
-
-		else if (nTipoEvento == 0) {
-			nTipoEvento = WaitForMultipleObjects(2, MutexBuffer, FALSE, INFINITE);                                /*Esperando o semaforo de espacos ocupados - permissao pra leitura*/
-
-			if (nTipoEvento == 1) break;
-			else if (nTipoEvento == 0) {                                                                 /*Semafoto de espacos ocupados Conquistado*/
-				if (CircularList[p_ocup][7] == '5' && CircularList[p_ocup][8] == '5') {         /*Selecao dos dados apenas de tipo  55 = Alarme */
-					for (int i = 0; i < 27; i++) {
-						Alarmes[i] = CircularList[p_ocup][i];
-					}
-
-					WaitForSingleObject(hMutexConsole, INFINITE);
-					printf("%.*s\n\n", 27, Alarmes);
-					ReleaseMutex(hMutexConsole);
-
-					p_ocup = (p_ocup + 1) % RAM;
-
-					ReleaseSemaphore(hSemLivre, 1, NULL);
-				}
-				else {
-					ReleaseSemaphore(hSemOcupado, 1, NULL);
-				}
-
-				ReleaseMutex(hMutexBuffer);                                                     /*Liberando o mutex da secao critica*/
-
-			}
-		}
+		status = UnlockFile(hFile, 0, NULL, 39 * FILE_SIZE, NULL);
 	}
-
-	CloseHandle(MutexBuffer);
-	CloseHandle(SemOcupado);
-	CloseHandle(Events);
-
-	WaitForSingleObject(hMutexConsole, INFINITE);
-	printf("Finalizando - Captura de alarmes\n");
-	ReleaseMutex(hMutexConsole);
-	pthread_exit((void*)index);
-	return (void*)index;
 }
