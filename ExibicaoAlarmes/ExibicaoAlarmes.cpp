@@ -7,7 +7,7 @@
 #include <locale.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyL, hEventKeyEsc, hEventKeyZ, hEventMailslotAlarme, hMailslotServerAlarme;
+HANDLE hEventKeyL, hEventKeyZ, hEventMailslotAlarme, hMailslotServerAlarme;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 void  LerMailSlot();
 
@@ -35,16 +35,13 @@ int main() {
 	hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
 	CheckForError(hEventKeyL);
 
-	hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
-	CheckForError(hEventKeyEsc);
-
 	hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
 	CheckForError(hEventKeyZ);
 
 	hEventMailslotAlarme = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"MailslotAlarme");
 	CheckForError(hEventMailslotAlarme);
 
-	HANDLE Events[3] = { hEventKeyL, hEventKeyEsc, hEventKeyZ };
+	HANDLE Events[3] = { hEventKeyL, hEventKeyZ };
 
 	hMailslotServerAlarme = CreateMailslot(L"\\\\.\\mailslot\\MailslotAlarme", 0, MAILSLOT_WAIT_FOREVER, NULL);
 	if (hMailslotServerAlarme == INVALID_HANDLE_VALUE)
@@ -53,10 +50,8 @@ int main() {
 	}
 	SetEvent(hEventMailslotAlarme);
 
-	while (nTipoEvento != 1) {
-		nTipoEvento = WaitForMultipleObjects(3, Events, FALSE, 1);
-
-		if (nTipoEvento == 1) break;
+	while (true) {
+		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
 
 		if (nTipoEvento == 0 && desbloqueado)
 		{
@@ -74,7 +69,7 @@ int main() {
 			SetConsoleTextAttribute(hConsole, 15);
 			printf(" - Processo de exibicao de alarmes\n");
 		}
-		else if (nTipoEvento == 2) {
+		else if (nTipoEvento == 1) {
 			system("cls");
 		}
 

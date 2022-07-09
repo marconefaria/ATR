@@ -6,7 +6,7 @@
 #include <conio.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyR, hEventKeyEsc, hEventMailslotProcesso, hMailslotServerProcesso;
+HANDLE hEventKeyR, hEventMailslotProcesso, hMailslotServerProcesso;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 void  LerMailSlot();
 
@@ -20,13 +20,8 @@ int main() {
     hEventKeyR = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyR");
     CheckForError(hEventKeyR);
 
-    hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
-    CheckForError(hEventKeyEsc);
-
     hEventMailslotProcesso = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"MailslotProcesso");
     CheckForError(hEventMailslotProcesso);
-
-    HANDLE Events[2] = { hEventKeyR, hEventKeyEsc };
 
     hMailslotServerProcesso = CreateMailslot(L"\\\\.\\mailslot\\MailslotProcesso", 0, MAILSLOT_WAIT_FOREVER, NULL);
     if (hMailslotServerProcesso == INVALID_HANDLE_VALUE)
@@ -35,11 +30,9 @@ int main() {
     }
     SetEvent(hEventMailslotProcesso);
 
-    while (nTipoEvento != 1) {
+    while (true) {
 
-        nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
-
-        if (nTipoEvento == 1) break;
+        nTipoEvento = WaitForSingleObject(hEventKeyR, 1);
 
         if (nTipoEvento == 0 && desbloqueado) {
             desbloqueado = false;

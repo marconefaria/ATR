@@ -7,7 +7,7 @@
 #include <conio.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyT, hEventKeyEsc;
+HANDLE hEventKeyT;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hFile, hArquivo, hArquivoCheio;
 void LerDadosArquivo();
@@ -19,14 +19,11 @@ int main() {
 
     hEventKeyT = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyT");
     CheckForError(hEventKeyT);
-    hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
-    CheckForError(hEventKeyEsc);
     hArquivoCheio = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"ArquivoCheio");
     CheckForError(hArquivoCheio);
     hArquivo = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, L"SemArquivo");
     CheckForError(hArquivo);
 
-    HANDLE Events[2] = { hEventKeyT, hEventKeyEsc };
     /*Abrindo arquivo*/
     hFile = CreateFile(
         L"..\\..\\ArquivoCircular.txt",
@@ -41,11 +38,9 @@ int main() {
         printf("Falha ao abrir o arquivo - Codigo %d. \n", GetLastError());
     }
 
-    while (nTipoEvento != 1) {
+    while (true) {
 
-        nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
-
-        if (nTipoEvento == 1) break;
+        nTipoEvento = WaitForSingleObject(hEventKeyT, 1);
 
         if (nTipoEvento == 0 && desbloqueado) {
             desbloqueado = false;
@@ -81,7 +76,6 @@ int main() {
 void  LerDadosArquivo() {
 
     char DadosOtimizacao[38];
-
     cont = cont % FILE_SIZE;
     DWORD dwPos = cont * 39;
     DWORD dwBytesRead = 0;
@@ -96,10 +90,9 @@ void  LerDadosArquivo() {
             printf("ReadFile error: %d\n", GetLastError());
         }
         else if (dwBytesRead == 38) {
-
-            printf("NSEQ:");
-
             /*NSEQ*/
+            printf("NSEQ: ");
+
             for (int j = 0; j < 6; j++) {
                 printf("%c", DadosOtimizacao[j]);
             }
@@ -128,6 +121,12 @@ void  LerDadosArquivo() {
 
             /*TIPO*/
             for (int j = 7; j < 9; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+            printf(" ");
+
+            /*TIMESTAMP*/
+            for (int j = 30; j < 38; j++) {
                 printf("%c", DadosOtimizacao[j]);
             }
             printf("\n");
