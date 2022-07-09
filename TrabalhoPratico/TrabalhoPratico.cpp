@@ -51,7 +51,7 @@ HANDLE hEventMailslotAlarme, hEventMailslotProcesso;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hFile, hArquivo, hArquivoCheio, hMailslotClienteAlarme, hMailslotClienteProcesso;
 HANDLE hTimeOut;
-HANDLE pDadosOtimizacao, pAlarmes, pDadosProcesso;
+PROCESS_INFORMATION pDadosOtimizacao, pAlarmes, pDadosProcesso;
 HANDLE hEventBloqueioAlarme, hEventBloqueioProcesso, hEventBloqueioOtimizacao;
 
 int main() {
@@ -124,9 +124,7 @@ void CriarProcessosExibicao()
 {
 	/*Criando processos filhos*/
 	STARTUPINFO startup_info;				                                   /*StartUpInformation para novo processo*/
-	PROCESS_INFORMATION process_info;	                                       /*Informacoes sobre novo processo criado*/
 	bool statusProcess;
-	process_info.hProcess = &pDadosProcesso;
 
 	ZeroMemory(&startup_info, sizeof(startup_info));                           /* Zera um bloco de memória localizado em &si passando o comprimento a ser zerado. */
 	startup_info.cb = sizeof(startup_info);	                                   /*Tamanho da estrutura em bytes*/
@@ -143,7 +141,7 @@ void CriarProcessosExibicao()
 		NULL,	                                                               /*Heranca do ambiente de execucao*/
 		L"..\\x64\\Debug",                                                     /*Diretorio do arquivo executavel*/
 		&startup_info,			                                               /*lpStartUpInfo*/
-		&process_info);	                                                       /*lpProcessInformation*/
+		&pDadosProcesso);	                                                       /*lpProcessInformation*/
 
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	if (!statusProcess) {
@@ -156,7 +154,6 @@ void CriarProcessosExibicao()
 
 
 	/*Processo de exibicao de dados do novo sistema de otimizacao - Terminal DadosOtimizacao do Processo*/
-	process_info.hProcess = &pDadosOtimizacao;
 	startup_info.lpTitle = L"TERMINAL B - Exibicao de Dados de Otimizacao";
 	statusProcess = CreateProcess(
 		L"..\\x64\\Debug\\ExibicaoDadosOtimizacao.exe",                        /*Caminho relativo do arquivo executavel*/
@@ -168,7 +165,7 @@ void CriarProcessosExibicao()
 		NULL,	                                                               /*Heranca do ambiente de execucao*/
 		L"..\\x64\\Debug",                                                          /*Diretorio do arquivo executavel*/
 		&startup_info,			                                               /*lpStartUpInfo*/
-		&process_info);	                                                       /*lpProcessInformation*/
+		&pDadosOtimizacao);	                                                       /*lpProcessInformation*/
 
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	if (!statusProcess) {
@@ -180,7 +177,6 @@ void CriarProcessosExibicao()
 	ReleaseMutex(hMutexConsole);
 
 	/*Processo de exibicao de alarmes - Terminal Alarmes*/
-	process_info.hProcess = &pAlarmes;
 	startup_info.lpTitle = L"TERMINAL C - Exibicao de Alarmes";
 	statusProcess = CreateProcess(
 		L"..\\x64\\Debug\\ExibicaoAlarmes.exe",                                /*Caminho relativo do arquivo executavel*/
@@ -192,7 +188,7 @@ void CriarProcessosExibicao()
 		NULL,	                                                               /*Heranca do ambiente de execucao*/
 		L"..\\x64\\Debug",                                                     /*Diretorio do arquivo executavel*/
 		&startup_info,			                                               /*lpStartUpInfo*/
-		&process_info);	                                                       /*lpProcessInformation*/
+		&pAlarmes);	                                                       /*lpProcessInformation*/
 
 	WaitForSingleObject(hMutexConsole, INFINITE);
 	if (!statusProcess) {
@@ -316,11 +312,13 @@ void CriarThreadsSecundarias()
 
 void FecharHandlers()
 {
-	/*Fechando todos os handles*/
-	TerminateProcess(pAlarmes, EXIT_SUCCESS);
-	TerminateProcess(pDadosOtimizacao, EXIT_SUCCESS);
-	TerminateProcess(pDadosProcesso, EXIT_SUCCESS);
+	/* encerra processos*/
 
+	TerminateProcess(pAlarmes.hProcess, EXIT_SUCCESS);
+	TerminateProcess(pDadosOtimizacao.hProcess, EXIT_SUCCESS);
+	TerminateProcess(pDadosProcesso.hProcess, EXIT_SUCCESS);
+
+	/*Fechando todos os handles*/
 	CloseHandle(hTimeOut);
 	CloseHandle(hEventMailslotAlarme);
 	CloseHandle(hEventMailslotProcesso);
