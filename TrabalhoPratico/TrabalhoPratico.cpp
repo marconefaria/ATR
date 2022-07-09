@@ -823,16 +823,20 @@ void* GeraDados(void* arg) {
 				SetConsoleTextAttribute(hConsole, 15);
 				printf(" - Thread Gera Dados\n");
 				ReleaseMutex(hMutexConsole);
-			}
-			else if (nTipoEvento == 0 && !desbloqueado) 
-			{
-				desbloqueado = true;
-				WaitForSingleObject(hMutexConsole, INFINITE);
-				SetConsoleTextAttribute(hConsole, 10);
-				printf("DESBLOQUEADO");
-				SetConsoleTextAttribute(hConsole, 15);
-				printf(" - Thread Gera Dados\n");
-				ReleaseMutex(hMutexConsole);
+
+				nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
+
+				if (nTipoEvento == 1) break;
+				if (nTipoEvento == 0 && !desbloqueado)
+				{
+					desbloqueado = true;
+					WaitForSingleObject(hMutexConsole, INFINITE);
+					SetConsoleTextAttribute(hConsole, 10);
+					printf("DESBLOQUEADO");
+					SetConsoleTextAttribute(hConsole, 15);
+					printf(" - Thread Gera Dados\n");
+					ReleaseMutex(hMutexConsole);
+				}
 			}
 
 			if (desbloqueado)
