@@ -1,6 +1,4 @@
 #define WIN32_LEAN_AND_MEAN
-#define _CHECKERROR	    1
-#define	ESC_KEY			27
 
 #include <windows.h>
 #include <stdio.h>
@@ -11,6 +9,7 @@
 
 HANDLE hEventKeyL, hEventKeyEsc, hEventKeyZ, hEventMailslotAlarme, hMailslotServerAlarme;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+void  LerMailSlot();
 
 char descricaoAlarme[10][30] =
 {
@@ -28,21 +27,18 @@ char descricaoAlarme[10][30] =
 
 int main() {
 	setlocale(LC_ALL, "Portuguese");
-	int     nTipoEvento = 3, key = 0, index = 0;
+	int     nTipoEvento = 3, key = 0;
+	bool status, desbloqueado = true;
 
-	bool status;
+	DWORD   MessageCount;
 
-	char    buffer[27];
-
-	DWORD   ret, dwBytesLidos, MessageCount;
-
-	HANDLE hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
+	hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
 	CheckForError(hEventKeyL);
 
-	HANDLE hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
+	hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
 	CheckForError(hEventKeyEsc);
 
-	HANDLE hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
+	hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
 	CheckForError(hEventKeyZ);
 
 	hEventMailslotAlarme = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"MailslotAlarme");
@@ -58,85 +54,81 @@ int main() {
 	SetEvent(hEventMailslotAlarme);
 
 	while (nTipoEvento != 1) {
-		ret = WaitForMultipleObjects(3, Events, FALSE, 1);
+		nTipoEvento = WaitForMultipleObjects(3, Events, FALSE, 1);
 
-		if (ret != WAIT_TIMEOUT) {
-			nTipoEvento = ret - WAIT_OBJECT_0;
-		}
+		if (nTipoEvento == 1) break;
 
-		if (nTipoEvento == 0) {
+		if (nTipoEvento == 0 && desbloqueado)
+		{
+			desbloqueado = false;
 			SetConsoleTextAttribute(hConsole, 12);
 			printf("BLOQUEADO");
 			SetConsoleTextAttribute(hConsole, 15);
 			printf(" - Processo de exibicao de alarmes\n");
-
-			ret = WaitForMultipleObjects(3, Events, FALSE, INFINITE);
-			nTipoEvento = ret - WAIT_OBJECT_0;
-
-			if (nTipoEvento == 0) {
-				SetConsoleTextAttribute(hConsole, 10);
-				printf("DESBLOQUEADO");
-				SetConsoleTextAttribute(hConsole, 15);
-				printf(" - Processo de exibicao de alarmes\n");
-
-				nTipoEvento = 3;
-			}
+		}
+		else if (nTipoEvento == 0 && !desbloqueado)
+		{
+			desbloqueado = true;
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Processo de exibicao de alarmes\n");
 		}
 		else if (nTipoEvento == 2) {
 			system("cls");
 		}
 
-		if (nTipoEvento == 3) {
+		if (desbloqueado)
+		{
 			status = GetMailslotInfo(hMailslotServerAlarme, 0, &MessageCount, 0, 0);
+
 			if (!status)
 			{
 				printf("GetMailslotInfo failed: %d\n", GetLastError());
 			}
-
-			DWORD    numRead;
-
-			/* Read the record */
-			status = ReadFile(hMailslotServerAlarme, &buffer, sizeof(buffer), &numRead, 0);
-
-			/* See if an error */
-			if (!status)
-			{
-				printf("ReadFile error: %d\n", GetLastError());
+			else {
+				LerMailSlot();
 			}
-			else
-			{
-				/*TIMESTAMP*/
-				for (int j = 0; j < 8; j++) {
-					printf("%c", buffer[(j + 19)]);
-				}
-
-				printf(" NSEQ: ");
-
-				/*NSEQ*/
-				for (int j = 8; j < 14; j++) {
-					printf("%c", buffer[(j - 8)]);
-				}
-
-				index = (int)buffer[13] - 48;
-				printf(" %.*s PRI: ", 30, descricaoAlarme[index]);
-
-				/*PRIORIDADE*/
-				for (int j = 18; j < 21; j++) {
-					printf("%c", buffer[(j - 3)]);
-				}
-			}
-
-			printf("\n");
-
 		}
 	}
 
-	CloseHandle(Events);
-	CloseHandle(hMailslotServerAlarme);
-	CloseHandle(hEventMailslotAlarme);
-	CloseHandle(hEventKeyEsc);
-	CloseHandle(hEventKeyL);
-	CloseHandle(hConsole);
-
 	return EXIT_SUCCESS;
+}
+
+void  LerMailSlot()
+{
+	char    buffer[27];
+	DWORD    numRead;
+
+	/* Read the record */
+	BOOL status = ReadFile(hMailslotServerAlarme, &buffer, sizeof(buffer), &numRead, 0);
+
+	/* See if an error */
+	if (!status)
+	{
+		printf("ReadFile error: %d\n", GetLastError());
+	}
+	else
+	{
+		/*TIMESTAMP*/
+		for (int j = 0; j < 8; j++) {
+			printf("%c", buffer[(j + 19)]);
+		}
+
+		printf(" NSEQ: ");
+
+		/*NSEQ*/
+		for (int j = 8; j < 14; j++) {
+			printf("%c", buffer[(j - 8)]);
+		}
+
+		int index = (int)buffer[13] - 48;
+		printf(" %.*s PRI: ", 30, descricaoAlarme[index]);
+
+		/*PRIORIDADE*/
+		for (int j = 18; j < 21; j++) {
+			printf("%c", buffer[(j - 3)]);
+		}
+	}
+	printf("\n");
 }

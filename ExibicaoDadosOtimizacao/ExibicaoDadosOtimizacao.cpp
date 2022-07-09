@@ -1,7 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
-#define _CHECKERROR	    1
-#define	ESC_KEY			27
-#define	FILE_SIZE	    20
+#define	FILE_SIZE	    200
 
 #include <windows.h>
 #include <stdio.h>
@@ -16,14 +14,12 @@ void LerDadosArquivo();
 int cont = 0;
 
 int main() {
-    int     nTipoEvento = 2, key = 0;
-    DWORD   ret, status, dwPos, dwBytesToWrite, dwBytesWritten;
-    DWORD  dwBytesToRead, dwBytesRead;
+    int     nTipoEvento = 2;
     bool    desbloqueado = true;
 
-    HANDLE hEventKeyT = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyT");
+    hEventKeyT = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyT");
     CheckForError(hEventKeyT);
-    HANDLE hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
+    hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
     CheckForError(hEventKeyEsc);
     hArquivoCheio = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"ArquivoCheio");
     CheckForError(hArquivoCheio);
@@ -79,11 +75,6 @@ int main() {
         Sleep(1000);
     }
 
-    CloseHandle(Events);
-    CloseHandle(hEventKeyEsc);
-    CloseHandle(hEventKeyT);
-    CloseHandle(hConsole);
-
     return EXIT_SUCCESS;
 }
 
@@ -98,12 +89,11 @@ void  LerDadosArquivo() {
     int status = LockFile(hFile, 0, NULL, 39 * FILE_SIZE, NULL);
     if (status != 0)
     {
-
         dwPos = SetFilePointer(hFile, dwPos, NULL, FILE_BEGIN);
         status = ReadFile(hFile, DadosOtimizacao, 38, &dwBytesRead, NULL);
 
         if (FALSE == status) {
-            printf("Nao foi possivel habilitar o arquivo para leitura. Codigo %d\n", GetLastError());
+            printf("ReadFile error: %d\n", GetLastError());
         }
         else if (dwBytesRead == 38) {
 
