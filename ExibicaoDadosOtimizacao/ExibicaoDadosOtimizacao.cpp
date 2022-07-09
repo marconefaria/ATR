@@ -1,7 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define _CHECKERROR	    1
 #define	ESC_KEY			27
-#define	FILE_SIZE	    200
+#define	FILE_SIZE	    20
 
 #include <windows.h>
 #include <stdio.h>
@@ -12,9 +12,11 @@
 HANDLE hEventKeyT, hEventKeyEsc;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hFile, hArquivo, hArquivoCheio;
+void LerDadosArquivo();
+int cont = 0;
 
 int main() {
-    int     nTipoEvento = 2, key = 0, cont = 0;
+    int     nTipoEvento = 2, key = 0;
     DWORD   ret, status, dwPos, dwBytesToWrite, dwBytesWritten;
     DWORD  dwBytesToRead, dwBytesRead;
     bool    desbloqueado = true;
@@ -29,6 +31,19 @@ int main() {
     CheckForError(hArquivo);
 
     HANDLE Events[2] = { hEventKeyT, hEventKeyEsc };
+    /*Abrindo arquivo*/
+    hFile = CreateFile(
+        L"..\\..\\ArquivoCircular.txt",
+        GENERIC_WRITE | GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        (LPSECURITY_ATTRIBUTES)NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        (HANDLE)NULL);
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        printf("Falha ao abrir o arquivo - Codigo %d. \n", GetLastError());
+    }
 
     while (nTipoEvento != 1) {
 
@@ -55,11 +70,13 @@ int main() {
         if (desbloqueado)
         {
             char DadosOtimizacao[38];
-            strcpy(DadosOtimizacao, LerDadosArquivo(cont));
-            cont++;
+            
+            LerDadosArquivo();
+            
             ReleaseSemaphore(hArquivo, 1, NULL);
             SetEvent(hArquivoCheio);
         }
+        Sleep(1000);
     }
 
     CloseHandle(Events);
@@ -70,42 +87,63 @@ int main() {
     return EXIT_SUCCESS;
 }
 
-char*  LerDadosArquivo(int cont) {
-    /*Abrindo arquivo*/
-    hFile = CreateFile(
-        L"..\\ArquivoCircular.txt",
-        GENERIC_WRITE | GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
-        (LPSECURITY_ATTRIBUTES)NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        (HANDLE)NULL);
+void  LerDadosArquivo() {
 
-    if (hFile == INVALID_HANDLE_VALUE) {
-        printf("Falha ao abrir o arquivo - Codigo %d. \n", GetLastError());
-    }
+    char DadosOtimizacao[38];
 
-    else {
-        printf("Arquivo aberto com sucesso\n");
+    cont = cont % FILE_SIZE;
+    DWORD dwPos = cont * 39;
+    DWORD dwBytesRead = 0;
 
-        Sleep(300);
-        char DadosOtimizacao[38];
+    int status = LockFile(hFile, 0, NULL, 39 * FILE_SIZE, NULL);
+    if (status != 0)
+    {
 
-        cont = cont % FILE_SIZE;
-        DWORD dwPos = cont * 38;
-
-        /*Leitura de arquivo*/
-        LockFile(hFile, 0, 38 * FILE_SIZE, 38 * FILE_SIZE, NULL);
-        DWORD dwBytesRead = 0;
         dwPos = SetFilePointer(hFile, dwPos, NULL, FILE_BEGIN);
-        int status = ReadFile(hFile, DadosOtimizacao, 38, &dwBytesRead, NULL);
+        status = ReadFile(hFile, DadosOtimizacao, 38, &dwBytesRead, NULL);
 
         if (FALSE == status) {
             printf("Nao foi possivel habilitar o arquivo para leitura. Codigo %d\n", GetLastError());
         }
+        else if (dwBytesRead == 38) {
 
-        UnlockFile(hFile, 0, 38 * FILE_SIZE, 38 * FILE_SIZE, NULL);
+            printf("NSEQ:");
 
-        return DadosOtimizacao;
+            /*NSEQ*/
+            for (int j = 0; j < 6; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+
+            printf(" SP (TEMP) :");
+
+            /*SP_TEMP*/
+            for (int j = 17; j < 23; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+
+            printf("C SP (PRE) :");
+
+            /*SP_PRESS*/
+            for (int j = 10; j < 16; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+
+            printf("psi VOL:");
+
+            /*VOL*/
+            for (int j = 24; j < 29; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+            printf("m3 PROD:");
+
+            /*TIPO*/
+            for (int j = 7; j < 9; j++) {
+                printf("%c", DadosOtimizacao[j]);
+            }
+            printf("\n");
+
+            cont++;
+        }
+        status = UnlockFile(hFile, 0, NULL, 39 * FILE_SIZE, NULL);
     }
 }
