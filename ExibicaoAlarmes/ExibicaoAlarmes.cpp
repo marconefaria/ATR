@@ -1,133 +1,129 @@
 #define WIN32_LEAN_AND_MEAN
-#define _CHECKERROR	    1
-#define	ESC_KEY			27
 
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
+#include <locale.h>
 #include "CheckForError.h"
 
-HANDLE hEventKeyZ, hEventKeyEsc;
+HANDLE hEventKeyL, hEventKeyZ, hEventMailslotAlarme, hMailslotServerAlarme;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+void  LerMailSlot();
+
+char descricaoAlarme[10][30] =
+{
+	"10|Pressão baixa gás injeção ",
+	"01|Derramamento de óleo PF-1 ",
+	"02|Parada total de produção  ",
+	"03|Nível crítico reservatório",
+	"04|Parada produção por 60 min",
+	"05|Danos leves a equipamentos",
+	"06|Temperatura alta extração ",
+	"07|Danos críticos equipamento",
+	"08|Temperatura baixa extração",
+	"09|Pressão baixa gás extração"
+};
 
 int main() {
-    SetConsoleTitle(L"TERMINAL B - Exibicao de alarmes");
+	setlocale(LC_ALL, "Portuguese");
+	int     nTipoEvento = 3, key = 0;
+	bool status, desbloqueado = true;
 
-    int     nTipoEvento = 2, key = 0;
+	DWORD   MessageCount;
 
-    bool    status;
+	hEventKeyL = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyL");
+	CheckForError(hEventKeyL);
 
-    char    PIMS[27] = { 'N', 'S', 'E', 'Q', 
-                         'T', 'I', 'P', 'O',
-                         'I', 'D', 
-                         'P', 'R', 'I', 'O', 'R', 'I', 'D', 'A', 'D', 'E',
-                         'H', 'H', ':', 'M', 'M', ':', 'S', 
-                        },
-        MsgBuffer[38];
+	hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
+	CheckForError(hEventKeyZ);
 
-    DWORD   ret, dwBytesLidos, MenssageCount;
+	hEventMailslotAlarme = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"MailslotAlarme");
+	CheckForError(hEventMailslotAlarme);
 
-    hEventKeyZ = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyZ");
-    CheckForError(hEventKeyZ);
+	HANDLE Events[3] = { hEventKeyL, hEventKeyZ };
 
-    hEventKeyEsc = OpenEvent(EVENT_ALL_ACCESS, TRUE, L"KeyEsc");
-    CheckForError(hEventKeyEsc);
+	hMailslotServerAlarme = CreateMailslot(L"\\\\.\\mailslot\\MailslotAlarme", 0, MAILSLOT_WAIT_FOREVER, NULL);
+	if (hMailslotServerAlarme == INVALID_HANDLE_VALUE)
+	{
+		printf("CreateMailslot failed: %d\n", GetLastError());
+	}
+	SetEvent(hEventMailslotAlarme);
 
-    HANDLE Events[2] = { hEventKeyZ, hEventKeyEsc };
+	while (true) {
+		nTipoEvento = WaitForMultipleObjects(2, Events, FALSE, 1);
 
-    while (key != ESC_KEY) {
-        ret = WaitForMultipleObjects(2, Events, FALSE, 1);
-        GetLastError();
+		if (nTipoEvento == 0 && desbloqueado)
+		{
+			desbloqueado = false;
+			SetConsoleTextAttribute(hConsole, 12);
+			printf("BLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Processo de exibicao de alarmes\n");
+		}
+		else if (nTipoEvento == 0 && !desbloqueado)
+		{
+			desbloqueado = true;
+			SetConsoleTextAttribute(hConsole, 10);
+			printf("DESBLOQUEADO");
+			SetConsoleTextAttribute(hConsole, 15);
+			printf(" - Processo de exibicao de alarmes\n");
+		}
+		else if (nTipoEvento == 1) {
+			system("cls");
+		}
 
-        if (ret != WAIT_TIMEOUT) {
-            nTipoEvento = ret - WAIT_OBJECT_0;
-        }
+		if (desbloqueado)
+		{
+			status = GetMailslotInfo(hMailslotServerAlarme, 0, &MessageCount, 0, 0);
 
-        if (nTipoEvento == 0) {
-            SetConsoleTextAttribute(hConsole, 12);
-            printf("BLOQUEADO");
-            SetConsoleTextAttribute(hConsole, 15);
-            printf(" - Processo de exibicao de dados\n");
+			if (!status)
+			{
+				printf("GetMailslotInfo failed: %d\n", GetLastError());
+			}
+			else {
+				LerMailSlot();
+			}
+		}
+	}
 
-            ret = WaitForMultipleObjects(2, Events, FALSE, INFINITE);
-            GetLastError();
+	return EXIT_SUCCESS;
+}
 
-            nTipoEvento = ret - WAIT_OBJECT_0;
+void  LerMailSlot()
+{
+	char    buffer[27];
+	DWORD    numRead;
 
-            if (nTipoEvento == 0) {
-                nTipoEvento = 2;
-            }
+	/* Read the record */
+	BOOL status = ReadFile(hMailslotServerAlarme, &buffer, sizeof(buffer), &numRead, 0);
 
-            SetConsoleTextAttribute(hConsole, 10);
-            printf("DESBLOQUEADO");
-            SetConsoleTextAttribute(hConsole, 15);
-            printf(" - Processo de exibicao de dados\n");
-        }
+	/* See if an error */
+	if (!status)
+	{
+		printf("ReadFile error: %d\n", GetLastError());
+	}
+	else
+	{
+		/*TIMESTAMP*/
+		for (int j = 0; j < 8; j++) {
+			printf("%c", buffer[(j + 19)]);
+		}
 
-        /*Condicao para termino do processo*/
-        if (nTipoEvento == 1) {
-            key = ESC_KEY;
-        }
+		printf(" NSEQ: ");
 
-        GetLastError();
+		/*NSEQ*/
+		for (int j = 8; j < 14; j++) {
+			printf("%c", buffer[(j - 8)]);
+		}
 
-        /*Caso nTipoEvento nao tenha sido alterado -> leitura do mailslot*/
-        if (nTipoEvento == 2 && (int)MenssageCount > 0) {
-            CheckForError(status);
+		int index = (int)buffer[13] - 48;
+		printf(" %.*s PRI: ", 30, descricaoAlarme[index]);
 
-            /*TIMESTAMP*/
-            for (int j = 0; j < 8; j++) {
-                PIMS[j] = MsgBuffer[(j + 23)];
-            }
-
-            /*NSEQ*/
-            for (int j = 14; j < 20; j++) {
-                PIMS[j] = MsgBuffer[(j - 14)];
-            }
-
-            /*ID ALARME*/
-            for (int j = 31; j < 35; j++) {
-                PIMS[j] = MsgBuffer[(j - 22)];
-            }
-
-            /*GRAU*/
-            for (int j = 41; j < 43; j++) {
-                PIMS[j] = MsgBuffer[(j - 27)];
-            }
-
-            /*PREV*/
-            for (int j = 49; j < 54; j++) {
-                PIMS[j] = MsgBuffer[(j - 32)];
-            }
-
-            if (MsgBuffer[7] == '9') {
-                /*Exibe alarmes criticos em vermelho*/
-                SetConsoleTextAttribute(hConsole, 12);
-                for (int j = 0; j < 54; j++) {
-                    printf("%c", PIMS[j]);
-                }
-                SetConsoleTextAttribute(hConsole, 15);
-                printf("\n");
-            }
-            else if (MsgBuffer[7] == '2') {
-                /*Exibe alarmes nao criticos*/
-                for (int j = 0; j < 54; j++) {
-                    printf("%c", PIMS[j]);
-                }
-                printf("\n");
-            }
-        }
-    } /*fim do while*/
-
-    /*------------------------------------------------------------------------------*/
-    /*Fechando handles*/
-    CloseHandle(Events);
-    CloseHandle(hEventKeyEsc);
-    CloseHandle(hEventKeyZ);
-    CloseHandle(hConsole);
-
-    /*------------------------------------------------------------------------------*/
-    /*Finalizando o processo de exibicao de alarmes*/
-    return EXIT_SUCCESS;
+		/*PRIORIDADE*/
+		for (int j = 18; j < 21; j++) {
+			printf("%c", buffer[(j - 3)]);
+		}
+	}
+	printf("\n");
 }
